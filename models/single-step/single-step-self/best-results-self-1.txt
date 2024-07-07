@@ -1,0 +1,95 @@
+class CustomFeedForwardLayer(nn.Module):
+    def __init__(self, d_model, dim_feedforward, dropout, bias):
+        super(CustomFeedForwardLayer, self).__init__()
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.value_projection = nn.Linear(d_model, d_model, bias=bias)
+        
+        self.norm2 = nn.LayerNorm(d_model)
+        self.feed_forward = nn.Sequential(
+            nn.Linear(d_model, dim_feedforward, bias=bias),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim_feedforward, d_model, bias=bias),
+            nn.Dropout(dropout)
+        )
+        
+    def forward(self, x):
+        x = x + self.value_projection(self.norm1(x))
+        x = x + self.feed_forward(self.norm2(x))
+        return x
+
+Best of 1000 Epochs:
+--- 1 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 128,
+    num_layers = 4,
+    dim_feedforward = 128 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+~ 600k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.000343, Train MAPE: 1.064%, Val Loss: 0.008532, Val MAPE: 1.594%
+
+--- 2 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 64,
+    num_layers = 4,
+    dim_feedforward = 64 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+
+~ 160 k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.000577, Train MAPE: 1.371%, Val Loss: 0.007665, Val MAPE: 1.816%
+
+--- 3 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 64,
+    num_layers = 2,
+    dim_feedforward = 64 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+
+~ 80 k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.000986, Train MAPE: 1.628%, Val Loss: 0.009349, Val MAPE: 2.355%

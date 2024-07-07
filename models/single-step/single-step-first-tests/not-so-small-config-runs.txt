@@ -1,0 +1,74 @@
+Every run with 100 Epochs and same model config and Adam with 1e-4:
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 128,
+    nhead = 4,
+    num_layers = 4,
+    dim_feedforward = 128 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+~ 1M parameters
+
+--- 1 ---
+(par-beta)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3']
+
+Train Loss: 0.021976, Train MAPE: 8.652%, Val Loss: 0.054588, Val MAPE: 9.520%
+
+--- 2 ---
+(-Ss)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReSs1', 'ImSs1', 'ReSs3', 'ImSs3', 'ReSs5', 'ImSs5', 'ReSs7', 'ImSs7', 'ReSs9', 'ImSs9', 'ReSs11', 'ImSs11', 'ReSs13', 'ImSs13', 'ReSs15', 'ImSs15', 'ReSs17', 'ImSs17', 'ReSs19', 'ImSs19', 'ReSs21', 'ImSs21', 'ReSs23', 'ImSs23', 'ReSs25', 'ImSs25', 'ReSs29', 'ImSs29', 'ReSs33', 'ImSs33', 'ReSs37', 'ImSs37', 'ReSs43', 'ImSs43', 'ReSs49', 'ImSs49', 'ReSs57', 'ImSs57', 'ReSs69', 'ImSs69', 'ReSs83', 'ImSs83', 'ReSs101', 'ImSs101', 'ReSs127', 'ImSs127', 'ReSs165', 'ImSs165', 'ReSs237', 'ImSs237', 'ReSs399', 'ImSs399', 'ReSs1207', 'ImSs1207']
+
+Train Loss: 0.033765, Train MAPE: 9.244%, Val Loss: 0.066722, Val MAPE: 11.634%
+
+--- 3 ---
+(-Vr-Sr)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'Vs', 'ReSh1', 'ImSh1', 'ReSh3', 'ImSh3', 'ReSh5', 'ImSh5', 'ReSh7', 'ImSh7', 'ReSh9', 'ImSh9', 'ReSh11', 'ImSh11', 'ReSh13', 'ImSh13', 'ReSh15', 'ImSh15', 'ReSh17', 'ImSh17', 'ReSh19', 'ImSh19', 'ReSh21', 'ImSh21', 'ReSh23', 'ImSh23', 'ReSh25', 'ImSh25', 'ReSh29', 'ImSh29', 'ReSh33', 'ImSh33', 'ReSh37', 'ImSh37', 'ReSh43', 'ImSh43', 'ReSh49', 'ImSh49', 'ReSh57', 'ImSh57', 'ReSh69', 'ImSh69', 'ReSh83', 'ImSh83', 'ReSh101', 'ImSh101', 'ReSh127', 'ImSh127', 'ReSh165', 'ImSh165', 'ReSh237', 'ImSh237', 'ReSh399', 'ImSh399', 'ReSh1207', 'ImSh1207']
+
+Train Loss: 0.028982, Train MAPE: 7.985%, Val Loss: 0.063745, Val MAPE: 9.751%
+
+--- 4 ---
+(-SS-Vr-Sr)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReSs1', 'ImSs1', 'ReSs3', 'ImSs3', 'ReSs5', 'ImSs5', 'ReSs7', 'ImSs7', 'ReSs9', 'ImSs9', 'ReSs11', 'ImSs11', 'ReSs13', 'ImSs13', 'ReSs15', 'ImSs15', 'ReSs17', 'ImSs17', 'ReSs19', 'ImSs19', 'ReSs21', 'ImSs21', 'ReSs23', 'ImSs23', 'ReSs25', 'ImSs25', 'ReSs29', 'ImSs29', 'ReSs33', 'ImSs33', 'ReSs37', 'ImSs37', 'ReSs43', 'ImSs43', 'ReSs49', 'ImSs49', 'ReSs57', 'ImSs57', 'ReSs69', 'ImSs69', 'ReSs83', 'ImSs83', 'ReSs101', 'ImSs101', 'ReSs127', 'ImSs127', 'ReSs165', 'ImSs165', 'ReSs237', 'ImSs237', 'ReSs399', 'ImSs399', 'ReSs1207', 'ImSs1207', 'Vs', 'ReSh1', 'ImSh1', 'ReSh3', 'ImSh3', 'ReSh5', 'ImSh5', 'ReSh7', 'ImSh7', 'ReSh9', 'ImSh9', 'ReSh11', 'ImSh11', 'ReSh13', 'ImSh13', 'ReSh15', 'ImSh15', 'ReSh17', 'ImSh17', 'ReSh19', 'ImSh19', 'ReSh21', 'ImSh21', 'ReSh23', 'ImSh23', 'ReSh25', 'ImSh25', 'ReSh29', 'ImSh29', 'ReSh33', 'ImSh33', 'ReSh37', 'ImSh37', 'ReSh43', 'ImSh43', 'ReSh49', 'ImSh49', 'ReSh57', 'ImSh57', 'ReSh69', 'ImSh69', 'ReSh83', 'ImSh83', 'ReSh101', 'ImSh101', 'ReSh127', 'ImSh127', 'ReSh165', 'ImSh165', 'ReSh237', 'ImSh237', 'ReSh399', 'ImSh399', 'ReSh1207', 'ImSh1207']
+
+Train Loss: 0.018092, Train MAPE: 7.505%, Val Loss: 0.051056, Val MAPE: 9.692%
+
+--- 5 ---
+(-HF)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'Fo']
+
+Train Loss: 0.014033, Train MAPE: 5.341%, Val Loss: 0.025188, Val MAPE: 6.331%
+
+--- 6 ---
+(-HF-MP2)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'Fo', 'ReSo1', 'ImSo1', 'ReSo3', 'ImSo3', 'ReSo5', 'ImSo5', 'ReSo7', 'ImSo7', 'ReSo9', 'ImSo9', 'ReSo11', 'ImSo11', 'ReSo13', 'ImSo13', 'ReSo15', 'ImSo15', 'ReSo17', 'ImSo17', 'ReSo19', 'ImSo19', 'ReSo21', 'ImSo21', 'ReSo23', 'ImSo23', 'ReSo25', 'ImSo25', 'ReSo29', 'ImSo29', 'ReSo33', 'ImSo33', 'ReSo37', 'ImSo37', 'ReSo43', 'ImSo43', 'ReSo49', 'ImSo49', 'ReSo57', 'ImSo57', 'ReSo69', 'ImSo69', 'ReSo83', 'ImSo83', 'ReSo101', 'ImSo101', 'ReSo127', 'ImSo127', 'ReSo165', 'ImSo165', 'ReSo237', 'ImSo237', 'ReSo399', 'ImSo399', 'ReSo1207', 'ImSo1207']
+
+Train Loss: 0.008416, Train MAPE: 3.090%, Val Loss: 0.014309, Val MAPE: 3.931%
+
+--- 7 ---
+(-HFMP2)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.006393, Train MAPE: 3.331%, Val Loss: 0.013597, Val MAPE: 3.925%
+
+--- 8 ---
+(-Ss-Vr-Sr-HFMP2)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReSs1', 'ImSs1', 'ReSs3', 'ImSs3', 'ReSs5', 'ImSs5', 'ReSs7', 'ImSs7', 'ReSs9', 'ImSs9', 'ReSs11', 'ImSs11', 'ReSs13', 'ImSs13', 'ReSs15', 'ImSs15', 'ReSs17', 'ImSs17', 'ReSs19', 'ImSs19', 'ReSs21', 'ImSs21', 'ReSs23', 'ImSs23', 'ReSs25', 'ImSs25', 'ReSs29', 'ImSs29', 'ReSs33', 'ImSs33', 'ReSs37', 'ImSs37', 'ReSs43', 'ImSs43', 'ReSs49', 'ImSs49', 'ReSs57', 'ImSs57', 'ReSs69', 'ImSs69', 'ReSs83', 'ImSs83', 'ReSs101', 'ImSs101', 'ReSs127', 'ImSs127', 'ReSs165', 'ImSs165', 'ReSs237', 'ImSs237', 'ReSs399', 'ImSs399', 'ReSs1207', 'ImSs1207', 'Vs', 'ReSh1', 'ImSh1', 'ReSh3', 'ImSh3', 'ReSh5', 'ImSh5', 'ReSh7', 'ImSh7', 'ReSh9', 'ImSh9', 'ReSh11', 'ImSh11', 'ReSh13', 'ImSh13', 'ReSh15', 'ImSh15', 'ReSh17', 'ImSh17', 'ReSh19', 'ImSh19', 'ReSh21', 'ImSh21', 'ReSh23', 'ImSh23', 'ReSh25', 'ImSh25', 'ReSh29', 'ImSh29', 'ReSh33', 'ImSh33', 'ReSh37', 'ImSh37', 'ReSh43', 'ImSh43', 'ReSh49', 'ImSh49', 'ReSh57', 'ImSh57', 'ReSh69', 'ImSh69', 'ReSh83', 'ImSh83', 'ReSh101', 'ImSh101', 'ReSh127', 'ImSh127', 'ReSh165', 'ImSh165', 'ReSh237', 'ImSh237', 'ReSh399', 'ImSh399', 'ReSh1207', 'ImSh1207', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.006265, Train MAPE: 3.165%, Val Loss: 0.013789, Val MAPE: 4.255%
+

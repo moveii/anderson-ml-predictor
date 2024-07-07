@@ -1,0 +1,271 @@
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 3,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+
+Epoch 99, Train Loss: 0.000046, Val Loss: 0.000044
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+
+Epoch 98, Train Loss: 0.000044, Val Loss: 0.000040
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 384,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 384 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 100, Train Loss: 0.000055, Val Loss: 0.000078
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = False
+)
+
+Epoch 98, Train Loss: 0.000045, Val Loss: 0.000063
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 8,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 100, Train Loss: 0.000046, Val Loss: 0.000084
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 100, Train Loss: 0.000050, Val Loss: 0.000090
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'relu',
+    bias = True
+)
+
+Epoch 99, Train Loss: 0.000035, Val Loss: 0.000183 -> overfitting
+
+fixed feature scaling (no label scaling):
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 98, Train Loss: 0.000029, Val Loss: 0.000026
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 4,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 98, Train Loss: 0.000030, Val Loss: 0.000026
+
+with feature and label scaling (indepentend for real and imaginary part):
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 4,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 99, Train Loss: 0.001174, Val Loss: 0.000474
+MAPE: 3.5039828717708588
+
+config = ModelConfig(
+    input_dim = 59,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 256,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 256 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+Epoch 95, Train Loss: 0.001455, Val Loss: 0.000785
+MAPE: 1.8948520235717297
+
+without positional encoding:
+
+Epoch 100, Train Loss: 0.000866, Val Loss: 0.000445
+MAPE: 1.8397010378539562
+
+
+with learnable positonal encoding:
+Epoch 200, Train Loss: 0.000994, Val Loss: 0.001437
+MAPE: 1.6768935658037663
+
+with normal seven dims:
+[75.25655627772213, 50.31497908197343, 42.92279181443155, 38.64239037632942, 35.593322809785604, 33.093244361132385, 31.262917769886553, 29.305142525583506, 27.551480570062996, 25.754940614663063, 23.84885540297255, 22.35988664170727, 20.450180342793466, 18.69448260795325, 17.0201595001854, 15.231713772471995, 13.520954349264503, 11.926851070998236, 10.396295081684366, 8.944350967742503, 7.520265502529218, 6.1192999195773154, 4.780234487855341, 3.509259929810651, 2.300726163591025, 1.1484063471230912, 0.06026516933452512]
+
+with normal seven dims + Fso dims:
+[71.54995989352464, 47.707403323426846, 40.427570118010046, 35.960545524954796, 32.53722260370851, 30.02346686720848, 27.83183875977993, 25.83194867428392, 24.11481358949095, 22.403499990142883, 20.769613812863827, 19.317979664355516, 17.878177537117153, 16.493516808375716, 15.059988837130367, 13.68213702137582, 12.377278786059469, 11.072180250007658, 9.789127199398354, 8.512608890258708, 7.24103077116888, 5.968304853467271, 4.722670222213492, 3.502867814945057, 2.3187418103741946, 1.1715450496645645, 0.06796834189776746]
+
+from here on, mape calc is right!
+
+config = ModelConfig(
+    input_dim = len(fixed_features) + len(labels) - 2,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 384,
+    nhead = 4,
+    num_layers = 4,
+    dim_feedforward = 384 * 4,
+    
+    dropout = 0.2,
+    activation = 'gelu',
+    bias = True
+)
+[42.05441067703068, 32.966058236733076, 26.801630347967148, 23.025320616178213, 20.125274347607046, 17.520655108522625, 15.020469614863396, 12.831870779208838, 11.278129053907469, 9.773758356599137, 8.524966007145121, 7.413916957215406, 6.453002664353699, 5.648040957888588, 4.933627540199086, 4.331019723415375, 3.848265738785267, 3.4272711590863763, 3.031055585143622, 2.7269425489823336, 2.4451589300762864, 2.2034446810255757, 1.980862896249164, 1.7756956878933123, 1.5818898733967217, 1.4014978399820393, 1.2620816776165156]
+
+config = ModelConfig(
+    input_dim = len(fixed_features) + len(labels) - 2,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 128,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 128 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+[36.43730378866196, 27.878788778305054, 21.89137142443657, 18.938245232105256, 16.795983358621598, 14.836588672041893, 12.80856991302967, 11.166949520647526, 9.894756715238094, 8.546592751979828, 7.370730699807406, 6.508156207472086, 5.737534199982882, 4.816574320912361, 4.049628513649106, 3.3746369815096258, 2.8151642478704453, 2.3207218796163795, 1.8967109254449606, 1.5129554692432285, 1.1990701868794857, 0.9366913276650012, 0.7257671285364777, 0.5454099399410188, 0.38804878280404953, 0.24963247926998883, 0.12034630535868927]
+
+trying out different scalers:
+
+config = ModelConfig(
+    input_dim = len(fixed_features) + len(labels) - 2,
+    output_dim = 2,
+    sequence_length = 27,
+    
+    d_model = 128,
+    nhead = 4,
+    num_layers = 2,
+    dim_feedforward = 128 * 4,
+    
+    dropout = 0.1,
+    activation = 'gelu',
+    bias = True
+)
+
+standard: Epoch  10: Train Loss: 0.003741, Train MAPE: 122.091%, Val Loss: 0.004602, Val MAPE: 10.560%, Val REG: 41.432%
+minmax: Epoch  10: Train Loss: 0.000802, Train MAPE: 683.271%, Val Loss: 0.000791, Val MAPE: 73.929%, Val REG: 532.424%
+absminmax: Epoch  10: Train Loss: 0.000221, Train MAPE: 450.315%, Val Loss: 0.000220, Val MAPE: 37.470%, Val REG: 94.908%
+robust: Epoch  10: Train Loss: 0.004523, Train MAPE: 110.130%, Val Loss: 0.005735, Val MAPE: 13.059%, Val REG: 33.010%
+quantile: Epoch  10: Train Loss: 0.000536, Train MAPE: 160.856%, Val Loss: 0.000577, Val MAPE: 7.977%, Val REG: 736.056%
+quantile normal: Epoch  10: Train Loss: 0.004479, Train MAPE: 78.536%, Val Loss: 0.004809, Val MAPE: 2.876%, Val REG: 29.202%
+
+quantile normal after 400 epochs
+[35.9796172208786, 24.50905654168129, 18.857231078624725, 16.1212890663147, 14.324073792934417, 12.9083755761981, 11.542111025691032, 10.3857043440938, 9.302530644476414, 8.43907767137885, 7.5863645706027745, 6.929052931502461, 6.250503464609385, 5.553631797835231, 4.832957984656096, 4.167784154340625, 3.488950354501605, 2.9277435106560588, 2.4540508803911507, 2.0435027829892936, 1.6571894412785768, 1.3361323690526188, 1.0442513571139425, 0.782243738245219, 0.5462332467325032, 0.335682651637122, 0.15435349911870436]

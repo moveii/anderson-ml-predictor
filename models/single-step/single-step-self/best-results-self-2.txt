@@ -1,0 +1,119 @@
+class CustomFeedForwardLayer(nn.Module):
+    def __init__(self, d_model, dim_feedforward, dropout, bias):
+        super(CustomFeedForwardLayer, self).__init__()
+
+        self.value_projection = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, d_model, bias=bias),
+            nn.GELU(),
+            nn.Dropout(dropout)
+        )
+        
+        self.feed_forward = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, dim_feedforward, bias=bias),
+            nn.GELU(),
+            nn.Linear(dim_feedforward, d_model, bias=bias),
+            nn.Dropout(dropout)
+        )
+        
+    def forward(self, x):
+        x = x + self.value_projection(x)
+        x = x + self.feed_forward(x)
+        return x
+
+Best of 1000 Epochs:
+--- 1 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 128,
+    num_layers = 4,
+    dim_feedforward = 128 * 4,
+    
+    dropout = 0.2,
+    bias = True
+)
+~ 600k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.000280, Train MAPE: 0.912%, Val Loss: 0.010749, Val MAPE: 1.573%
+
+with gradient clipping:
+nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+Train Loss: 0.000289, Train MAPE: 0.965%, Val Loss: 0.008560, Val MAPE: 1.464%
+
+with gradient clipping and lr scheduler:
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, threshold=5e-6, min_lr=1e-5, factor=0.8)
+Train Loss: 0.000144, Train MAPE: 0.754%, Val Loss: 0.008813, Val MAPE: 1.363%, lr: [5.120000000000001e-05]
+
+--- 2 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 64,
+    num_layers = 4,
+    dim_feedforward = 64 * 4,
+    
+    dropout = 0.2,
+    bias = True
+)
+
+~ 160 k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.000505, Train MAPE: 1.236%, Val Loss: 0.009247, Val MAPE: 1.891%
+
+with gradient clipping:
+nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+Train Loss: 0.000895, Train MAPE: 1.422%, Val Loss: 0.008489, Val MAPE: 1.928% (epoch ~600)
+
+with gradient clipping and lr scheduler:
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, threshold=5e-6, min_lr=1e-5, factor=0.8)
+Train Loss: 0.000443, Train MAPE: 1.162%, Val Loss: 0.008462, Val MAPE: 1.818%, lr: [5.120000000000001e-05]
+
+--- 3 ----
+
+config = ModelConfig(
+    input_dim = len(fixed_features),
+    output_dim = len(labels),
+    sequence_length = 1,
+    
+    d_model = 64,
+    num_layers = 2,
+    dim_feedforward = 64 * 4,
+    
+    dropout = 0.2,
+    bias = True
+)
+
+~ 80 k parameters
+
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+fixed_features = ['beta', 'E1', 'E2', 'E3', 'V1', 'V2', 'V3', 'ReFso1', 'ImFso1', 'ReFso3', 'ImFso3', 'ReFso5', 'ImFso5', 'ReFso7', 'ImFso7', 'ReFso9', 'ImFso9', 'ReFso11', 'ImFso11', 'ReFso13', 'ImFso13', 'ReFso15', 'ImFso15', 'ReFso17', 'ImFso17', 'ReFso19', 'ImFso19', 'ReFso21', 'ImFso21', 'ReFso23', 'ImFso23', 'ReFso25', 'ImFso25', 'ReFso29', 'ImFso29', 'ReFso33', 'ImFso33', 'ReFso37', 'ImFso37', 'ReFso43', 'ImFso43', 'ReFso49', 'ImFso49', 'ReFso57', 'ImFso57', 'ReFso69', 'ImFso69', 'ReFso83', 'ImFso83', 'ReFso101', 'ImFso101', 'ReFso127', 'ImFso127', 'ReFso165', 'ImFso165', 'ReFso237', 'ImFso237', 'ReFso399', 'ImFso399', 'ReFso1207', 'ImFso1207']
+
+Train Loss: 0.001090, Train MAPE: 1.831%, Val Loss: 0.010721, Val MAPE: 2.547%
+
+with gradient clipping:
+nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+Train Loss: 0.000620, Train MAPE: 1.707%, Val Loss: 0.008721, Val MAPE: 2.353%
+
+with gradient clipping and lr scheduler:
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, threshold=5e-6, min_lr=1e-5, factor=0.8)
+Train Loss: 0.000683, Train MAPE: 1.584%, Val Loss: 0.009082, Val MAPE: 2.204%, lr: [5.120000000000001e-05]

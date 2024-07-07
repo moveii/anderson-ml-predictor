@@ -1,0 +1,8 @@
+df = df[df['ReSf1'] >= 1e-05]
+
+Best of 1000 Epochs:
+with "weird" data point:
+Train Loss: 0.001011, Train MAPE: 2.109%, Val Loss: 0.023407, Val MAPE: 2.905%
+
+without "weird" data point:
+Train Loss: 0.001090, Train MAPE: 1.831%, Val Loss: 0.010721, Val MAPE: 2.547%
