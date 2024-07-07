@@ -252,10 +252,11 @@ function self_energies(site::NTuple{2,Int64}, frequencies::AbstractVector, core:
     return 1 ./ g0_freq(site, frequencies, core, parameters, β) - 1 ./ g_freq(site, frequencies, core, parameters, β)
 end
 
+
 """Compute the expectation value of the number operator."""
 function number_operator_expectation(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    gτ = g_tau(site, τ, core, parameters, β)
-    return -gτ[1]
+    g_τ = g_tau(site, τ, core, parameters, β)
+    return -g_τ[1] # the size of the list is just one
 end
 
 end
