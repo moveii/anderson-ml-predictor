@@ -104,22 +104,23 @@ struct AndersonParameters
     ε_imp::Float64 # impurity energy level
     ε::AbstractVector{Float64} # bath-site energy levels
     v::AbstractVector{Float64} # hopping amplitude
+    β::Float64 # 1 / temperature
 
-    function AndersonParameters(u::Float64, ε_imp::Float64, ε::AbstractVector{Float64}, v::AbstractVector{Float64})
+    function AndersonParameters(u::Float64, ε_imp::Float64, ε::AbstractVector{Float64}, v::AbstractVector{Float64}, β::Float64)
         length(v) != length(ε) && throw(DomainError("There must be as many energies ($(length(ε))) as hopping amplitudes ($(length(v))."))
-        return new(u, ε_imp, ε, v)
+        return new(u, ε_imp, ε, v, β)
     end
 
-    function AndersonParameters(u::Float64, ε_imp::Float64, ε::Float64, v::AbstractVector{Float64})
-        return AndersonParameters(u, ε_imp, fill(ε, (length(v),)), v)
+    function AndersonParameters(u::Float64, ε_imp::Float64, ε::Float64, v::AbstractVector{Float64}, β::Float64)
+        return AndersonParameters(u, ε_imp, fill(ε, (length(v),)), v, β)
     end
 
-    function AndersonParameters(u::Float64, ε_imp::Float64, ε::AbstractVector{Float64}, v::Float64)
-        return AndersonParameters(u, ε_imp, ε, fill(v, (length(ε),)))
+    function AndersonParameters(u::Float64, ε_imp::Float64, ε::AbstractVector{Float64}, v::Float64, β::Float64)
+        return AndersonParameters(u, ε_imp, ε, fill(v, (length(ε),)), β)
     end
 
-    function AndersonParameters(u::Float64, ε_imp::Float64, ε::Float64, v::Float64)
-        return AndersonParameters(u, ε_imp, fill(ε, (1,)), fill(v, (1,)))
+    function AndersonParameters(u::Float64, ε_imp::Float64, ε::Float64, v::Float64, β::Float64)
+        return AndersonParameters(u, ε_imp, fill(ε, (1,)), fill(v, (1,)), β)
     end
 
 end
@@ -194,14 +195,14 @@ end
 
 
 """Compute the non-interacting hamiltonian for the given Anderson model as required by full_tau and full_freq."""
-function non_interacting_hamiltonian_eigen(core::AndersonCore, parameters::AndersonParameters, β::Float64)
-    return Fermions.Propagators.HamiltonianEigen(non_interacting_hamiltonian(core, parameters), core.quantum_numbers, β)
+function non_interacting_hamiltonian_eigen(core::AndersonCore, parameters::AndersonParameters)
+    return Fermions.Propagators.HamiltonianEigen(non_interacting_hamiltonian(core, parameters), core.quantum_numbers, parameters.β)
 end
 
 
 """Compute the full hamiltonian for the given Anderson model as required by full_tau and full_freq."""
-function full_hamiltonian_eigen(core::AndersonCore, parameters::AndersonParameters, β::Float64)
-    return Fermions.Propagators.HamiltonianEigen(hamiltonian(core, parameters), core.quantum_numbers, β)
+function full_hamiltonian_eigen(core::AndersonCore, parameters::AndersonParameters)
+    return Fermions.Propagators.HamiltonianEigen(hamiltonian(core, parameters), core.quantum_numbers, parameters.β)
 end
 
 
@@ -212,19 +213,19 @@ end
 
 
 """Compute the non-interacting imaginary times Green's for the given Anderson model."""
-function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    return full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters, β), β)
+function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+    return full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the imaginary times Green's for the given Anderson model."""
-function g_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    return Fermions.Propagators.full_tau(greens_operators(site, core), τ, full_hamiltonian_eigen(core, parameters, β), β)
+function g_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+    return Fermions.Propagators.full_tau(greens_operators(site, core), τ, full_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the hybridisation function for the given Anderson model."""
-function hybridisation_tau(τ::AbstractVector, parameters::AndersonParameters, β::Real)
+function hybridisation_tau(τ::AbstractVector, parameters::AndersonParameters)
     sum = zeros(length(τ))
 
     for i in 1:nbath(parameters)
@@ -237,25 +238,25 @@ end
 
 """Compute the non-interacting Matsubara Green's function for the given Anderson model."""
 function g0_freq(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, non_interacting_hamiltonian_eigen(core, parameters, β), β)
+    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the Matsubara Green's function for the given Anderson model."""
-function g_freq(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, full_hamiltonian_eigen(core, parameters, β), β)
+function g_freq(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, full_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the Matsubara self energies for a given Anderson model."""
-function self_energies(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    return 1 ./ g0_freq(site, frequencies, core, parameters, β) - 1 ./ g_freq(site, frequencies, core, parameters, β)
+function self_energies(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+    return 1 ./ g0_freq(site, frequencies, core, parameters, β) - 1 ./ g_freq(site, frequencies, core, parameters)
 end
 
 
 """Compute the expectation value of the number operator."""
-function number_operator_expectation(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters, β::Real)
-    g_τ = g_tau(site, τ, core, parameters, β)
+function number_operator_expectation(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+    g_τ = g_tau(site, τ, core, parameters)
     return -g_τ[1] # the size of the list is just one
 end
 

@@ -18,10 +18,11 @@ struct ModelParameters
     ε::Matrix{Float64} # bath-site energy levels
 
     u::Vector{Float64} # coulomb interaction strength
-
     v::Matrix{Float64} # hopping amplitude
     β::Vector{Float64} # thermodynamic beta (1/T)
-    ω::AbstractVector{FermionicFreq} # Matsubara frequencies
+
+    ω::Vector{FermionicFreq} # Matsubara frequencies
+    τ::Vector{Float64} # Matsubara frequencies
 
     function ModelParameters(
         n::Int, nbath::Int,
@@ -61,8 +62,9 @@ struct ModelParameters
         # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy
         basis = SparseIR.FiniteTempBasis(Fermionic(), 1 / t_lower_boundary, ε_upper_boundary, nothing)
         ω = SparseIR.default_matsubara_sampling_points(basis, positive_only=true)
+        τ = SparseIR.default_tau_sampling_points(basis)
 
-        return new(n, nbath, ε_imp, ε, u, v, β, ω)
+        return new(n, nbath, ε_imp, ε, u, v, β, ω, τ)
     end
 end
 
@@ -90,32 +92,32 @@ end
 function save_distributions(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64})
     histogram(energies, bins=50, title="Energy levels ε for bath-sites", xlabel="Energy", ylabel="Count", legend=false, alpha=0.7)
     savefig("data/plots/energy_distribution.png")
-    
+
     histogram(hopping_amplitudes, bins=50, title="Hopping Amplitudes V", xlabel="Hopping Amplitude", ylabel="Count", legend=false, alpha=0.7)
     savefig("data/plots/hopping_amplitude_distribution.png")
-    
+
     histogram(β, bins=50, title="β (1/T)", xlabel="β", ylabel="Count", legend=false, alpha=0.7)
     savefig("data/plots/beta_distribution.png")
-    
+
     histogram(u, bins=50, title="Coulomb Interaction Strengths U", xlabel="Coulomb Interaction Strength", ylabel="Count", legend=false, alpha=0.7)
     savefig("data/plots/coulomb_interaction_distribution.png")
-    
+
     CSV.write("data/energy_distribution.csv", DataFrame(Energies=energies))
     CSV.write("data/hopping_amplitude_distribution.csv", DataFrame(HoppingAmplitudes=hopping_amplitudes))
     CSV.write("data/beta_distribution.csv", DataFrame(Beta=β))
     CSV.write("data/coulomb_interaction_distribution.csv", DataFrame(CoulombInteractionStrengths=u))
 end
 
+# this function returns the paramaters defined in 'ModelParameters' wrapped as 'AndersonParameters', where each instance is its own model
 function get_anderson_parameters(model_parameters::ModelParameters)
     n = model_parameters.n
     u = model_parameters.u
     ε_imp = model_parameters.ε_imp
     ε = model_parameters.ε
     v = model_parameters.v
+    β = model_parameters.β
 
-    parameters = [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :]) for i in 1:n]
-
-    return parameters
+    return [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :], β[i]) for i in 1:n]
 end
 
 function save_number_operator_expectations(model_parameters::ModelParameters, filename="data/expected_number_operator_data.csv")
@@ -126,7 +128,7 @@ function save_number_operator_expectations(model_parameters::ModelParameters, fi
 
     @showprogress for (index, parameters) in enumerate(anderson_parameters)
         core = AndersonCore(model_parameters.nbath)
-        n_expectations = number_operator_expectation((1, 1), [model_parameters.β[index]], core, parameters, model_parameters.β[index])
+        n_expectations = number_operator_expectation((1, 1), [model_parameters.β[index]], core, parameters)
 
         push!(indices, index)
         push!(n_expectations_values, n_expectations)
