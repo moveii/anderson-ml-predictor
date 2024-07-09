@@ -9,16 +9,16 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    input_dim: int
+    max_sequence_length: int
+    d_model: int
     output_dim: int
 
-    d_model: int
-    max_sequence_length: int
-
+    encoder_input_dim: int
     encoder_dim_feedforward: int
     encoder_nhead: int
     encoder_num_layers: int
 
+    decoder_input_dim: int
     decoder_dim_feedforward: int
     decoder_nhead: int
     decoder_num_layers: int
@@ -34,11 +34,14 @@ class AutoregressiveTransformer(nn.Module):
         super(AutoregressiveTransformer, self).__init__()
 
         self.config = config
-        self.input_projection = nn.Linear(config.input_dim, config.d_model)
+
+        self.encoder_input_projection = nn.Linear(config.encoder_input_dim, config.d_model)
+        self.decoder_input_projection = nn.Linear(config.decoder_input_dim, config.d_model)
+
         self.positional_encoding = LearnablePositionalEncoding(config.max_sequence_length, config.d_model)
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.encoder_d_model,
+            d_model=config.d_model,
             nhead=config.encoder_nhead,
             dim_feedforward=config.encoder_dim_feedforward,
             dropout=config.dropout,
@@ -50,7 +53,7 @@ class AutoregressiveTransformer(nn.Module):
         )
 
         decoder_layer = nn.TransformerDecoderLayer(
-            d_model=config.decoder_d_model,
+            d_model=config.d_model,
             nhead=config.decoder_nhead,
             dim_feedforward=config.decoder_dim_feedforward,
             dropout=config.dropout,
@@ -67,8 +70,8 @@ class AutoregressiveTransformer(nn.Module):
         self.output_layer = nn.Linear(config.d_model, config.output_dim)
         self.att_mask = {}
 
-    def forward(self, x, device):
-        x = self.input_projection(x)
+    def forward(self, encoder_input, decoder_input, device):
+        x = self.decoder_input_projection(decoder_input)
         x = self.positional_encoding(x)
 
         _, T, _ = x.shape
@@ -76,11 +79,16 @@ class AutoregressiveTransformer(nn.Module):
         if T not in self.att_mask:
             self.att_mask[T] = self.generate_causal_mask(T, device)
 
-        encoder_output = self.transformer_encoder(x)
+        encoder_output = self.encode(encoder_input)
         output = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[T])
-        output = self.output_layer(output)
+        return self.output_layer(output)
 
-    def generate_causal_mask(seq_len, device):
+    def encode(self, encoder_input):
+        encoder_input = self.encoder_input_projection(encoder_input)
+        encoder_input = self.positional_encoding(encoder_input)
+        return self.transformer_encoder(encoder_input)
+
+    def generate_causal_mask(self, seq_len, device):
         mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
         mask = mask.masked_fill(mask == 1, float("-inf"))
         return mask
