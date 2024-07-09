@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 # note that torchtune requires setuptools' version to be < 70
 from torchtune.modules import RotaryPositionalEmbeddings
 
@@ -34,9 +35,7 @@ class AutoregressiveTransformer(nn.Module):
 
         self.config = config
         self.input_projection = nn.Linear(config.input_dim, config.d_model)
-        self.rotary_positional_embedding = RotaryPositionalEmbeddings(
-            config.d_model, max_seq_len=config.max_sequence_length
-        )
+        self.positional_encoding = LearnablePositionalEncoding(config.max_sequence_length, config.d_model)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.encoder_d_model,
@@ -48,7 +47,6 @@ class AutoregressiveTransformer(nn.Module):
             norm_first=True,
             bias=config.bias,
             device=device,
-            rotary_pos_emb=self.rotary_positional_embedding,
         )
 
         decoder_layer = nn.TransformerDecoderLayer(
@@ -61,7 +59,6 @@ class AutoregressiveTransformer(nn.Module):
             norm_first=True,
             bias=config.bias,
             device=device,
-            rotary_pos_emb=self.rotary_positional_embedding,
         )
 
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=config.encoder_num_layers)
@@ -72,13 +69,15 @@ class AutoregressiveTransformer(nn.Module):
 
     def forward(self, x, device):
         x = self.input_projection(x)
+        x = self.positional_encoding(x)
 
-        seq_len = x.size(1)
-        if seq_len not in self.att_mask:
-            self.att_mask[seq_len] = self.generate_causal_mask(seq_len, device)
+        _, T, _ = x.shape
+
+        if T not in self.att_mask:
+            self.att_mask[T] = self.generate_causal_mask(T, device)
 
         encoder_output = self.transformer_encoder(x)
-        output = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[seq_len])
+        output = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[T])
         output = self.output_layer(output)
 
     def generate_causal_mask(seq_len, device):
@@ -87,6 +86,19 @@ class AutoregressiveTransformer(nn.Module):
         return mask
 
 
+class LearnablePositionalEncoding(nn.Module):
+    def __init__(self, max_seq_len, d_model):
+        super(LearnablePositionalEncoding, self).__init__()
+        self.positional_encoding = nn.Parameter(torch.zeros(1, max_seq_len, d_model))
+
+    def forward(self, x):
+        _, T, _ = x.shape
+        return x + self.positional_encoding[:, :T, :]
+
+
+# i want to try this out later, but proper rope is applied to q and k and not tgt or src
+# thus i need to implement the transformer by myself
+# stay simple first, then improve
 class TransformerEncoderLayerWithRoPE(nn.TransformerEncoderLayer):
     def __init__(self, *args, rotary_pos_emb=None, **kwargs):
         super(TransformerEncoderLayerWithRoPE, self).__init__(*args, **kwargs)
