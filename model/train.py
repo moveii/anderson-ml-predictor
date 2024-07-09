@@ -1,6 +1,9 @@
 import random
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 import pandas as pd
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
@@ -109,7 +112,7 @@ labels = [
 ]
 
 
-df = pd.read_csv(file_path, skiprows=4)   # we skip the first four lines, because they are just metadata
+df = pd.read_csv(file_path, skiprows=4)  # we skip the first four lines, because they are just metadata
 df = df[encoder_input + labels]
 
 # remove one special row, looks very weird; ReSf1 = 2.377167465976437e-06
@@ -137,4 +140,111 @@ batch_size = 32
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
-print(dataset.__getitem__(0))
+# print(dataset.__getitem__(0))
+
+# init model
+
+config = ModelConfig(
+    output_dim=2,
+    d_model=512,
+    max_sequence_length=len(encoder_input),
+    encoder_input_dim=1,
+    encoder_dim_feedforward=512 * 4,
+    encoder_nhead=4,
+    encoder_num_layers=4,
+    decoder_input_dim=2,
+    decoder_dim_feedforward=512 * 4,
+    decoder_nhead=4,
+    decoder_num_layers=4,
+    dropout=0.1,
+    activation="gelu",
+    bias=True,
+)
+
+model = AutoregressiveTransformer(config, device).to(device)
+print(sum(p.numel() for p in model.parameters()) / 1e3, "k parameters")
+criterion = nn.MSELoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+# train
+
+
+def train(model, train_loader, optimizer, criterion, device):
+    model.train()
+    losses = []
+
+    for encoder_input, decoder_input, targets in train_loader:
+
+        optimizer.zero_grad()
+
+        outputs = model(encoder_input, decoder_input, device)
+        loss = criterion(outputs, targets)
+
+        loss.backward()
+        optimizer.step()
+
+        losses.append(loss.item())
+
+    return np.average(losses)
+
+
+def validate(model, val_loader, criterion, device):
+    model.eval()
+    losses = []
+
+    with torch.no_grad():
+
+        for encoder_input, decoder_input, targets in val_loader:
+
+            outputs = model(encoder_input, decoder_input, device)
+            loss = criterion(outputs, targets)
+
+            losses.append(loss.item())
+
+    return np.average(losses)
+
+
+def reverse_tranform_output(data, scaler):
+    B, T, C = data.shape
+    data = data.view(B, T * C)
+    data = data.cpu().numpy()
+    return scaler.inverse_transform(data)
+
+
+def validate_mape(model, loader, use_scaling=use_scaling, epsilon=1e-8):
+    model.eval()
+    losses = []
+
+    with torch.no_grad():
+
+        for encoder_input, decoder_input, targets in loader:
+            outputs = model(encoder_input, decoder_input, device)
+
+            if use_scaling:
+                outputs = torch.tensor(reverse_tranform_output(outputs, label_scaler))
+                targets = torch.tensor(reverse_tranform_output(targets, label_scaler))
+
+            ape = torch.abs((targets - outputs) / (targets + epsilon))
+            mape = torch.mean(ape) * 100
+
+            losses.append(mape.item())
+
+    return np.average(losses)
+
+
+print(f"Init validation loss: {validate(model, val_loader, criterion, device)}")
+print(f"Init mape validation loss: {validate_mape(model, val_loader)}")
+
+num_epochs = 10
+for epoch in range(num_epochs):
+    train(model, train_loader, optimizer, criterion, device)
+
+    train_loss = validate(model, train_loader, criterion, device)
+    val_train_loss = validate_mape(model, train_loader)
+
+    val_loss = validate(model, val_loader, criterion, device)
+    val_mape_loss = validate_mape(model, val_loader)
+
+    print(
+        f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train MAPE: {val_train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation MAPE: {val_mape_loss:.4f}"
+    )
