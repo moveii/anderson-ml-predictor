@@ -284,15 +284,49 @@ print(f"Inititial MAPE validation loss: {validate_mape(model, val_loader)}")
 print(f"Inititial Auto regresssive validation loss: {validate_autoregressive_mape(model, val_loader, device)}")
 
 num_epochs = 10
+
+lowest_train_loss = float("inf")
+lowest_val_loss = float("inf")
+lowest_val_reg_loss = float("inf")
+
+best_train_epoch = -1
+best_val_epoch = -1
+best_val_reg_epoch = -1
+
+train_losses = []
+train_mapes = []
+
 for epoch in range(num_epochs):
     train(model, train_loader, optimizer, criterion, device)
 
     train_loss = validate(model, train_loader, criterion, device)
-    val_train_loss = validate_mape(model, train_loader)
+    train_mape = validate_mape(model, train_loader)
+
 
     val_loss = validate(model, val_loader, criterion, device)
-    val_mape_loss = validate_mape(model, val_loader)
+    val_mape = validate_mape(model, val_loader)
+
+    val_mape_reg = validate_autoregressive_mape(model, val_loader, device)
+
+    train_losses.append(train_loss)
+    train_mapes.append(train_mape)
 
     print(
-        f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train MAPE: {val_train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation MAPE: {val_mape_loss:.4f}"
+        f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train MAPE: {train_mape:.4f}%, Validation Loss: {val_loss:.4f}, Validation MAPE: {val_mape:.4f}%, Val MAPE reg: {val_mape_reg:.4f}, lr: {scheduler.get_last_lr()}"
     )
+
+    if train_mape < lowest_train_loss:
+        lowest_train_loss = train_mape
+        best_train_epoch = epoch + 1
+
+    if val_mape < lowest_val_loss:
+        lowest_val_loss = val_mape
+        best_val_epoch = epoch + 1
+
+    if val_mape_reg < lowest_val_reg_loss:
+        lowest_val_reg_loss = val_mape_reg
+        best_val_reg_epoch = epoch + 1
+
+print(f"Lowest Train Loss: {lowest_train_loss:.6f} at Epoch {best_train_epoch}")
+print(f"Lowest Val Loss: {lowest_val_loss:.6f} at Epoch {best_val_epoch}")
+print(f"Lowest Val Reg Loss: {lowest_val_reg_loss:.6f} at Epoch {best_val_reg_epoch}")
