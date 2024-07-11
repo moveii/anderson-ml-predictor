@@ -239,8 +239,6 @@ def validate_mape(model, loader, use_scaling=use_scaling, epsilon=1e-8):
     return np.average(losses)
 
 
-print(f"Init validation loss: {validate(model, val_loader, criterion, device)}")
-print(f"Init mape validation loss: {validate_mape(model, val_loader)}")
 def sample(model, encoder_input, max_length, device, start_token=[0, 0]):
     model.eval()
     encoder_input = encoder_input.to(device)
@@ -333,3 +331,34 @@ for epoch in range(num_epochs):
 print(f"Lowest Train Loss: {lowest_train_loss:.6f} at Epoch {best_train_epoch}")
 print(f"Lowest Val Loss: {lowest_val_loss:.6f} at Epoch {best_val_epoch}")
 print(f"Lowest Val Reg Loss: {lowest_val_reg_loss:.6f} at Epoch {best_val_reg_epoch}")
+
+# with log scale
+plt.figure(figsize=(10, 6))
+plt.plot(train_losses, linestyle="-", color="b", label="Loss")
+plt.title("Training Losses Over Epochs (Log Scale)")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.yscale("log")
+plt.grid(True)
+plt.legend()
+plt.savefig("plots/training_losses_log_scale.png")
+
+# without log scale
+plt.figure(figsize=(10, 6))
+plt.plot(train_losses, linestyle="-", color="b", label="Loss")
+plt.title("Training Losses Over Epochs")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.grid(True)
+plt.legend()
+plt.savefig("plots/training_losses.png")
+
+plt.figure(figsize=(10, 6))
+plt.plot(train_mapes, linestyle="-", color="r", label="Training")
+plt.plot(train_mapes, linestyle="-", color="r", label="Validation")
+plt.title("MAPE Training / Validation Losses Over Epochs")
+plt.xlabel("Epoch")
+plt.ylabel("Loss (%)")
+plt.grid(True)
+plt.legend()
+plt.savefig("plots/training_losses_mape.png")
