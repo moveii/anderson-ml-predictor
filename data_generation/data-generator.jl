@@ -30,6 +30,7 @@ struct ModelParameters
         u_lower_boundary::Number,
         t_lower_boundary::Number, t_upper_boundary::Number, temperature_scale::Number,
         v_lower_boundary::Number, v_upper_boundary::Number,
+        generate_distribution_plots::Bool, file_suffix::String
     )::ModelParameters
         n > 0 || throw(DomainError(n, "'n' must be positive."))
         nbath > 0 || throw(DomainError(nbath, "'nbath' must be positive."))
@@ -57,7 +58,9 @@ struct ModelParameters
         v = reshape(hopping_amplitudes, n, nbath)
         β = 1.0 ./ temperatures
 
-        # save_distributions(energies, hopping_amplitudes, β, u)
+        if generate_distribution_plots
+            save_distribution_plots(energies, hopping_amplitudes, β, u, file_suffix)
+        end
 
         # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy, which defines our ωmax
         basis = SparseIR.FiniteTempBasis(Fermionic(), 1 / t_lower_boundary, ε_upper_boundary, nothing)
@@ -89,23 +92,26 @@ function exponential_distribution(scale::Number, boundary::Number, n::Int)
     return values[1:n]
 end
 
-function save_distributions(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64})
+function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64}, suffix::String)
     histogram(energies, bins=50, title="Energy levels ε for bath-sites", xlabel="Energy", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/energy_distribution.png")
+    savefig("data/plots/energy_distribution_$(suffix).png")
 
     histogram(hopping_amplitudes, bins=50, title="Hopping Amplitudes V", xlabel="Hopping Amplitude", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/hopping_amplitude_distribution.png")
+    savefig("data/plots/hopping_amplitude_distribution_$(suffix).png")
 
     histogram(β, bins=50, title="β (1/T)", xlabel="β", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/beta_distribution.png")
+    savefig("data/plots/beta_distribution_$(suffix).png")
+
+    histogram(1 ./ β, bins=50, title="Temperature", xlabel="T", ylabel="Count", legend=false, alpha=0.7)
+    savefig("data/plots/temperature_distribution_$(suffix).png")
 
     histogram(u, bins=50, title="Coulomb Interaction Strengths U", xlabel="Coulomb Interaction Strength", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/coulomb_interaction_distribution.png")
+    savefig("data/plots/coulomb_interaction_distribution_$(suffix).png")
 
-    CSV.write("data/energy_distribution.csv", DataFrame(Energies=energies))
-    CSV.write("data/hopping_amplitude_distribution.csv", DataFrame(HoppingAmplitudes=hopping_amplitudes))
-    CSV.write("data/beta_distribution.csv", DataFrame(Beta=β))
-    CSV.write("data/coulomb_interaction_distribution.csv", DataFrame(CoulombInteractionStrengths=u))
+    CSV.write("data/energy_distribution_$(suffix).csv", DataFrame(Energies=energies))
+    CSV.write("data/hopping_amplitude_distribution_$(suffix).csv", DataFrame(HoppingAmplitudes=hopping_amplitudes))
+    CSV.write("data/beta_distribution_$(suffix).csv", DataFrame(Beta=β))
+    CSV.write("data/coulomb_interaction_distribution_$(suffix).csv", DataFrame(CoulombInteractionStrengths=u))
 end
 
 # this function returns the paramaters defined in 'ModelParameters' wrapped as 'AndersonParameters', where each instance is its own model
@@ -120,7 +126,7 @@ function get_anderson_parameters(model_parameters::ModelParameters)
     return [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :], β[i]) for i in 1:n]
 end
 
-function save_number_operator_expectations(model_parameters::ModelParameters, filename="data/expected_number_operator_data.csv")
+function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
     indices = []
     n_expectations_values = []
 
@@ -135,12 +141,12 @@ function save_number_operator_expectations(model_parameters::ModelParameters, fi
     end
 
     df = DataFrame(Index=indices, ExpectedNumberOperator=n_expectations_values)
-    CSV.write(filename, df)
+    CSV.write("data/expected_number_operator_data_$(suffix).csv", df)
 
     scatter(indices, n_expectations_values, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
     hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
 
-    savefig("data/plots/expected_number_operator_plot.png")
+    savefig("data/plots/expected_number_operator_plot_$(suffix).png")
 end
 
 function generate_data()
@@ -159,6 +165,9 @@ function generate_data()
     v_lower_boundary = -5.0
     v_higher_boundary = 5.0
 
+    distribution_plots = true
+    file_suffix = "1k"
+
     println("Generating $n samples with $nbath bath sites.")
 
     model_parameters = ModelParameters(
@@ -166,7 +175,8 @@ function generate_data()
         ε_lower_boundary, ε_upper_boundary,
         u_lower_boundary,
         t_lower_boundary, t_upper_boundary, temperature_scale,
-        v_lower_boundary, v_higher_boundary
+        v_lower_boundary, v_higher_boundary,
+        distribution_plots, file_suffix
     )
 
     anderson_parameters = get_anderson_parameters(model_parameters)
