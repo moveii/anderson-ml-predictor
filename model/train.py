@@ -170,6 +170,7 @@ model = AutoregressiveTransformer(config, device).to(device)
 print(sum(p.numel() for p in model.parameters()) / 1e3, "k parameters")
 criterion = nn.MSELoss().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, threshold=5e-6, min_lr=1e-5, factor=0.8)
 
 # train
 
@@ -186,6 +187,7 @@ def train(model, train_loader, optimizer, criterion, device):
         loss = criterion(outputs, targets)
 
         loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         losses.append(loss.item())
@@ -302,6 +304,7 @@ for epoch in range(num_epochs):
     train_loss = validate(model, train_loader, criterion, device)
     train_mape = validate_mape(model, train_loader)
 
+    scheduler.step(train_loss)
 
     val_loss = validate(model, val_loader, criterion, device)
     val_mape = validate_mape(model, val_loader)
