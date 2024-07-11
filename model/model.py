@@ -71,6 +71,15 @@ class AutoregressiveTransformer(nn.Module):
         self.att_mask = {}
 
     def forward(self, encoder_input, decoder_input, device):
+        encoder_output = self.encode(encoder_input)
+        return self.decode(decoder_input, encoder_output, device)
+
+    def encode(self, encoder_input):
+        x = self.encoder_input_projection(encoder_input)
+        x = self.positional_encoding(x)
+        return self.transformer_encoder(x)
+
+    def decode(self, decoder_input, encoder_output, device):
         x = self.decoder_input_projection(decoder_input)
         x = self.positional_encoding(x)
 
@@ -79,14 +88,8 @@ class AutoregressiveTransformer(nn.Module):
         if T not in self.att_mask:
             self.att_mask[T] = self.generate_causal_mask(T, device)
 
-        encoder_output = self.encode(encoder_input)
         output = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[T])
         return self.output_layer(output)
-
-    def encode(self, encoder_input):
-        encoder_input = self.encoder_input_projection(encoder_input)
-        encoder_input = self.positional_encoding(encoder_input)
-        return self.transformer_encoder(encoder_input)
 
     def generate_causal_mask(self, seq_len, device):
         mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
