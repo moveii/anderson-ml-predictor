@@ -1,12 +1,17 @@
 import random
+
 import numpy as np
+import pandas as pd
+
+import matplotlib.pyplot as plt
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-import pandas as pd
 from torch.utils.data import DataLoader, Subset
+
 from sklearn.model_selection import train_test_split
+
 from model import AutoregressiveTransformer, ModelConfig
 from dataset import ImpurityDataset, compute_scalers
 
@@ -234,6 +239,49 @@ def validate_mape(model, loader, use_scaling=use_scaling, epsilon=1e-8):
 
 print(f"Init validation loss: {validate(model, val_loader, criterion, device)}")
 print(f"Init mape validation loss: {validate_mape(model, val_loader)}")
+def sample(model, encoder_input, max_length, device, start_token=[0, 0]):
+    model.eval()
+    encoder_input = encoder_input.to(device)
+
+    with torch.no_grad():
+        encoder_output = model.encode(encoder_input)
+
+        start_token_tensor = torch.tensor([start_token], dtype=torch.float).to(device)
+        decoder_input = start_token_tensor.expand(encoder_input.size(0), 1, -1)
+
+        for _ in range(max_length):
+            output = model.decode(decoder_input, encoder_output, device)
+            next_token = output[:, -1:, :]
+            decoder_input = torch.cat((decoder_input, next_token), dim=1)
+
+    return decoder_input[:, 1:, :]
+
+
+def validate_autoregressive_mape(model, val_loader, device, use_scaling=use_scaling, epsilon=1e-8):
+    model.eval()
+    losses = []
+
+    with torch.no_grad():
+
+        for encoder_input, _, targets in val_loader:
+
+            outputs = sample(model, encoder_input, 27, device)
+
+            if use_scaling:
+                outputs = torch.tensor(reverse_tranform_output(outputs, label_scaler))
+                targets = torch.tensor(reverse_tranform_output(targets, label_scaler))
+
+            ape = torch.abs((targets - outputs) / (targets + epsilon))
+            mape = torch.mean(ape) * 100
+
+            losses.append(mape.item())
+
+    return np.average(losses)
+
+
+print(f"Inititial validation loss: {validate(model, val_loader, criterion, device)}")
+print(f"Inititial MAPE validation loss: {validate_mape(model, val_loader)}")
+print(f"Inititial Auto regresssive validation loss: {validate_autoregressive_mape(model, val_loader, device)}")
 
 num_epochs = 10
 for epoch in range(num_epochs):
