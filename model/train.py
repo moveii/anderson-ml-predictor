@@ -1,8 +1,6 @@
 import random
-
 import numpy as np
 import pandas as pd
-
 import matplotlib.pyplot as plt
 
 import torch
@@ -137,7 +135,6 @@ else:
 indices = list(range(len(dataset)))
 # make sure we use the same seed, otherwise the two splits differ!
 train_indices, val_indices = train_test_split(indices, test_size=validation_size, random_state=seed)
-
 train_dataset = Subset(dataset, train_indices)
 val_dataset = Subset(dataset, val_indices)
 
@@ -147,8 +144,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_wo
 
 # print(dataset.__getitem__(0))
 
-# init model
-
+# Model configuration and initialization
 config = ModelConfig(
     output_dim=2,
     d_model=512,
@@ -167,12 +163,11 @@ config = ModelConfig(
 )
 
 model = AutoregressiveTransformer(config, device).to(device)
-print(sum(p.numel() for p in model.parameters()) / 1e3, "k parameters")
+print(sum(p.numel() for p in model.parameters()) / 1e6, "M parameters")
+
 criterion = nn.MSELoss().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, threshold=5e-6, min_lr=1e-5, factor=0.8)
-
-# train
 
 
 def train(model, train_loader, optimizer, criterion, device):
@@ -211,7 +206,7 @@ def validate(model, val_loader, criterion, device):
     return np.average(losses)
 
 
-def reverse_tranform_output(data, scaler):
+def reverse_transform_output(data, scaler):
     B, T, C = data.shape
     data = data.view(B, T * C)
     data = data.cpu().numpy()
@@ -228,8 +223,8 @@ def validate_mape(model, loader, use_scaling=use_scaling, epsilon=1e-8):
             outputs = model(encoder_input, decoder_input, device)
 
             if use_scaling:
-                outputs = torch.tensor(reverse_tranform_output(outputs, label_scaler))
-                targets = torch.tensor(reverse_tranform_output(targets, label_scaler))
+                outputs = torch.tensor(reverse_transform_output(outputs, label_scaler))
+                targets = torch.tensor(reverse_transform_output(targets, label_scaler))
 
             ape = torch.abs((targets - outputs) / (targets + epsilon))
             mape = torch.mean(ape) * 100
@@ -268,8 +263,8 @@ def validate_autoregressive_mape(model, val_loader, device, use_scaling=use_scal
             outputs = sample(model, encoder_input, 27, device)
 
             if use_scaling:
-                outputs = torch.tensor(reverse_tranform_output(outputs, label_scaler))
-                targets = torch.tensor(reverse_tranform_output(targets, label_scaler))
+                outputs = torch.tensor(reverse_transform_output(outputs, label_scaler))
+                targets = torch.tensor(reverse_transform_output(targets, label_scaler))
 
             ape = torch.abs((targets - outputs) / (targets + epsilon))
             mape = torch.mean(ape) * 100
