@@ -232,13 +232,19 @@ function hybridisation_tau(τ::AbstractVector, parameters::AndersonParameters)
     println(parameters.ε)
     println(parameters.β)
 
-    for (index, τi) in enumerate(τ)
-        for i in 1:nbath(parameters)
-            sum[index] += (parameters.v[i] .* parameters.v[i]) .* exp.(-τi .* parameters.ε[i]) ./ (1 + (exp(-parameters.β / 100 )* parameters.ε[i]))
-            #println("new one")
-            #println(exp.(-τi .* parameters.ε[i]) ./ (1 + exp(-parameters.β * parameters.ε[i])))
-            #println(parameters.v[i] .* parameters.v[i])
-        end
+    # only for debugging
+    #for (index, τi) in enumerate(τ)
+    #    for i in 1:nbath(parameters)
+    #        sum[index] += (parameters.v[i] .* parameters.v[i]) .* exp.(-τi .* parameters.ε[i]) ./ (1 + exp(-parameters.β[i] * parameters.ε[i]))
+    #        #println("new one")
+    #        #println(exp.(-τi .* parameters.ε[i]) ./ (1 + exp(-parameters.β * parameters.ε[i])))
+    #        #println(parameters.v[i] .* parameters.v[i])
+    #    end
+    #end
+
+
+    for i in 1:nbath(parameters)
+        sum += (parameters.v[i] .* parameters.v[i]) .* exp.(-τ .* parameters.ε[i]) ./ (1 + exp(-parameters.β * parameters.ε[i]))
     end
 
     return sum

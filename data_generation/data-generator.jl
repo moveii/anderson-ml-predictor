@@ -57,9 +57,9 @@ struct ModelParameters
         v = reshape(hopping_amplitudes, n, nbath)
         β = 1.0 ./ temperatures
 
-        save_distributions(energies, hopping_amplitudes, β, u)
+        # save_distributions(energies, hopping_amplitudes, β, u)
 
-        # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy
+        # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy, which defines our ωmax
         basis = SparseIR.FiniteTempBasis(Fermionic(), 1 / t_lower_boundary, ε_upper_boundary, nothing)
         ω = SparseIR.default_matsubara_sampling_points(basis, positive_only=true)
         τ = SparseIR.default_tau_sampling_points(basis)
@@ -144,7 +144,7 @@ function save_number_operator_expectations(model_parameters::ModelParameters, fi
 end
 
 function generate_data()
-    n = 1000
+    n = 1
     nbath = 5
 
     ε_lower_boundary = -5.0
@@ -169,7 +169,15 @@ function generate_data()
         v_lower_boundary, v_higher_boundary
     )
 
-    save_number_operator_expectations(model_parameters)
+    anderson_parameters = get_anderson_parameters(model_parameters)
+
+    @showprogress for (index, parameters) in enumerate(anderson_parameters)
+        tau = hybridisation_tau(model_parameters.τ, parameters)
+        println(tau)
+        println("test")
+    end
+
+    # save_number_operator_expectations(model_parameters)
 
 end
 
