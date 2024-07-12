@@ -93,25 +93,27 @@ function exponential_distribution(scale::Number, boundary::Number, n::Int)
 end
 
 function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64}, suffix::String)
+    base_folder = "data/distributions"
+
     histogram(energies, bins=50, title="Energy levels ε for bath-sites", xlabel="Energy", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/energy_distribution_$(suffix).png")
+    savefig("$base_folder/plots/energy_distribution_$suffix.png")
 
     histogram(hopping_amplitudes, bins=50, title="Hopping Amplitudes V", xlabel="Hopping Amplitude", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/hopping_amplitude_distribution_$(suffix).png")
+    savefig("$base_folder/plots/hopping_amplitude_distribution_$suffix.png")
 
     histogram(β, bins=50, title="β (1/T)", xlabel="β", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/beta_distribution_$(suffix).png")
+    savefig("$base_folder/plots/beta_distribution_$suffix.png")
 
-    histogram(1 ./ β, bins=50, title="Temperature", xlabel="T", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/temperature_distribution_$(suffix).png")
+    histogram(1 ./ β, bins=50, title="Temperatures", xlabel="T", ylabel="Count", legend=false, alpha=0.7)
+    savefig("$base_folder/plots/temperature_distribution_$suffix.png")
 
     histogram(u, bins=50, title="Coulomb Interaction Strengths U", xlabel="Coulomb Interaction Strength", ylabel="Count", legend=false, alpha=0.7)
-    savefig("data/plots/coulomb_interaction_distribution_$(suffix).png")
+    savefig("$base_folder/plots/coulomb_interaction_distribution_$suffix.png")
 
-    CSV.write("data/energy_distribution_$(suffix).csv", DataFrame(Energies=energies))
-    CSV.write("data/hopping_amplitude_distribution_$(suffix).csv", DataFrame(HoppingAmplitudes=hopping_amplitudes))
-    CSV.write("data/beta_distribution_$(suffix).csv", DataFrame(Beta=β))
-    CSV.write("data/coulomb_interaction_distribution_$(suffix).csv", DataFrame(CoulombInteractionStrengths=u))
+    CSV.write("$base_folder/energy_distribution_$suffix.csv", DataFrame(Energies=energies))
+    CSV.write("$base_folder/hopping_amplitude_distribution_$suffix.csv", DataFrame(HoppingAmplitudes=hopping_amplitudes))
+    CSV.write("$base_folder/beta_distribution_$suffix.csv", DataFrame(Beta=β))
+    CSV.write("$base_folder/coulomb_interaction_distribution_$suffix.csv", DataFrame(CoulombInteractionStrengths=u))
 end
 
 # this function returns the paramaters defined in 'ModelParameters' wrapped as 'AndersonParameters', where each instance is its own model
