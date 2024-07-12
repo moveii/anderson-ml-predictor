@@ -278,7 +278,7 @@ print(f"Inititial validation loss: {validate(model, val_loader, criterion, devic
 print(f"Inititial MAPE validation loss: {validate_mape(model, val_loader)}")
 print(f"Inititial Auto regresssive validation loss: {validate_autoregressive_mape(model, val_loader, device)}")
 
-num_epochs = 10
+num_epochs = 100
 
 lowest_train_loss = float("inf")
 lowest_val_loss = float("inf")
@@ -291,21 +291,27 @@ best_val_reg_epoch = -1
 train_losses = []
 train_mapes = []
 
+val_losses = []
+val_mapes = []
+
 for epoch in range(num_epochs):
     train(model, train_loader, optimizer, criterion, device)
 
     train_loss = validate(model, train_loader, criterion, device)
     train_mape = validate_mape(model, train_loader)
 
+    train_losses.append(train_loss)
+    train_mapes.append(train_mape)
+
     scheduler.step(train_loss)
 
     val_loss = validate(model, val_loader, criterion, device)
     val_mape = validate_mape(model, val_loader)
 
-    val_mape_reg = validate_autoregressive_mape(model, val_loader, device)
+    val_losses.append(val_loss)
+    val_mapes.append(val_mape)
 
-    train_losses.append(train_loss)
-    train_mapes.append(train_mape)
+    val_mape_reg = validate_autoregressive_mape(model, val_loader, device)
 
     print(
         f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train MAPE: {train_mape:.4f}%, Validation Loss: {val_loss:.4f}, Validation MAPE: {val_mape:.4f}%, Val MAPE reg: {val_mape_reg:.4f}, lr: {scheduler.get_last_lr()}"
@@ -329,30 +335,33 @@ print(f"Lowest Val Reg Loss: {lowest_val_reg_loss:.6f} at Epoch {best_val_reg_ep
 
 # with log scale
 plt.figure(figsize=(10, 6))
-plt.plot(train_losses, linestyle="-", color="b", label="Loss")
-plt.title("Training Losses Over Epochs (Log Scale)")
+plt.plot(train_losses, linestyle="-", color="b", label="Training Loss")
+plt.plot(val_losses, linestyle="-", color="r", label="Validation Loss")
+plt.title("Loss Over Epochs (Log Scale)")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.yscale("log")
 plt.grid(True)
 plt.legend()
-plt.savefig("plots/training_losses_log_scale.png")
+plt.savefig("plots/loss_log_scale.png")
 
 # without log scale
 plt.figure(figsize=(10, 6))
-plt.plot(train_losses, linestyle="-", color="b", label="Loss")
-plt.title("Training Losses Over Epochs")
+plt.plot(train_losses, linestyle="-", color="b", label="Training Loss")
+plt.plot(val_losses, linestyle="-", color="r", label="Validation Loss")
+plt.title("Loss Over Epochs")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.grid(True)
 plt.legend()
-plt.savefig("plots/training_losses.png")
+plt.savefig("plots/loss.png")
 
 plt.figure(figsize=(10, 6))
-plt.plot(train_mapes, linestyle="-", color="r", label="Training")
-plt.title("Training MAPE Loss Over Epochs")
+plt.plot(train_mapes, linestyle="-", color="b", label="Training Loss")
+plt.plot(val_mapes, linestyle="-", color="r", label="Validation Loss")
+plt.title("MAPE Over Epochs")
 plt.xlabel("Epoch")
-plt.ylabel("Loss (%)")
+plt.ylabel("MAPE (%)")
 plt.grid(True)
 plt.legend()
-plt.savefig("plots/training_mape_losss.png")
+plt.savefig("plots/mape_loss.png")
