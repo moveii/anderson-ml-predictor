@@ -128,27 +128,33 @@ function get_anderson_parameters(model_parameters::ModelParameters)
     return [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :], β[i]) for i in 1:n]
 end
 
-function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
-    indices = []
-    n_expectations_values = []
 
+function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
+    n_expectations_values = Dict{Int,Float64}()
     anderson_parameters = get_anderson_parameters(model_parameters)
 
-    @showprogress for (index, parameters) in enumerate(anderson_parameters)
-        core = AndersonCore(model_parameters.nbath)
-        n_expectations = number_operator_expectation((1, 1), [model_parameters.β[index]], core, parameters)
+    async_lock = ReentrantLock() # lock for thread-safe operations
 
-        push!(indices, index)
-        push!(n_expectations_values, n_expectations)
+    @showprogress Threads.@threads for index in eachindex(anderson_parameters)
+        core = AndersonCore(model_parameters.nbath)
+        n_expectations = number_operator_expectation((1, 1), [model_parameters.β[index]], core, anderson_parameters[index])
+
+        lock(async_lock) do
+            n_expectations_values[index] = n_expectations
+        end
     end
 
+    # we sort the result, so there is no randomness between runs
+    indices = sort(collect(keys(n_expectations_values)))
+    n_expectations_values = [n_expectations_values[i] for i in indices]
+
     df = DataFrame(Index=indices, ExpectedNumberOperator=n_expectations_values)
-    CSV.write("data/expected_number_operator_data_$(suffix).csv", df)
+    CSV.write("data/number/expected_number_operator_data_$suffix.csv", df)
 
     scatter(indices, n_expectations_values, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
     hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
 
-    savefig("data/plots/expected_number_operator_plot_$(suffix).png")
+    savefig("data/number/expected_number_operator_plot_$suffix.png")
 end
 
 function generate_data()
