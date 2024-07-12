@@ -128,6 +128,25 @@ function get_anderson_parameters(model_parameters::ModelParameters)
     return [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :], β[i]) for i in 1:n]
 end
 
+function get_exact_self_energies(model_parameters::ModelParameters, suffix::String, save_on_completion::Bool=false)::Matrix{ComplexF64}
+    parameters = get_anderson_parameters(model_parameters)
+    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
+
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
+    self_energies = zeros(ComplexF64, length(parameters), length(model_parameters.ω))
+
+    @showprogress Threads.@threads for index in eachindex(parameters)
+        self_energies[index, :] = AndersonModel.self_energies((1, 1), model_parameters.ω, core, parameters[index])
+    end
+
+    if save_on_completion
+        # TODO not working atm, have to split the matrix into indices and values
+        df = DataFrame(self_energies=self_energies)
+        CSV.write("data/exact_self_energies_$suffix.csv", df)
+    end
+
+    return self_energies
+end
 
 function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
     n_expectations_values = Dict{Int,Float64}()
@@ -158,7 +177,7 @@ function save_number_operator_expectations(model_parameters::ModelParameters, su
 end
 
 function generate_data()
-    n = 1
+    n = 100
     nbath = 5
 
     ε_lower_boundary = -5.0
@@ -173,7 +192,7 @@ function generate_data()
     v_lower_boundary = -5.0
     v_higher_boundary = 5.0
 
-    distribution_plots = true
+    distribution_plots = false
     file_suffix = "1k"
 
     println("Generating $n samples with $nbath bath sites.")
@@ -187,15 +206,18 @@ function generate_data()
         distribution_plots, file_suffix
     )
 
-    anderson_parameters = get_anderson_parameters(model_parameters)
+    self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
+    println(self_ernergies)
 
-    @showprogress for (index, parameters) in enumerate(anderson_parameters)
-        tau = hybridisation_tau(model_parameters.τ, parameters)
-        println(tau)
-        println("test")
-    end
+    #anderson_parameters = get_anderson_parameters(model_parameters)
 
-    # save_number_operator_expectations(model_parameters)
+    #@showprogress for (index, parameters) in enumerate(anderson_parameters)
+    #    tau = hybridisation_tau(model_parameters.τ, parameters)
+    #    println(tau)
+    #    println("test")
+    #end
+
+    # save_number_operator_expectations(model_parameters, file_suffix)
 
 end
 
