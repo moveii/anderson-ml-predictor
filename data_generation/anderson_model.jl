@@ -213,19 +213,19 @@ end
 
 
 """Compute the non-interacting imaginary times Green's for the given Anderson model."""
-function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the imaginary times Green's for the given Anderson model."""
-function g_tau(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function g_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_tau(greens_operators(site, core), τ, full_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the hybridisation function for the given Anderson model."""
-function hybridisation_tau(τ::AbstractVector, parameters::AndersonParameters)
+function hybridisation_tau(τ::AbstractVector{}, parameters::AndersonParameters)
     sum = zeros(length(τ))
 
     println(parameters.v)
@@ -252,25 +252,25 @@ end
 
 
 """Compute the non-interacting Matsubara Green's function for the given Anderson model."""
-function g0_freq(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function g0_freq(site::NTuple{2,Int64}, frequencies::AbstractVector{FermionicFreq}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the Matsubara Green's function for the given Anderson model."""
-function g_freq(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function g_freq(site::NTuple{2,Int64}, frequencies::AbstractVector{FermionicFreq}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, full_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
 """Compute the Matsubara self energies for a given Anderson model."""
-function self_energies(site::NTuple{2,Int64}, frequencies::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function self_energies(site::NTuple{2,Int64}, frequencies::AbstractVector{FermionicFreq}, core::AndersonCore, parameters::AndersonParameters)
     return 1 ./ g0_freq(site, frequencies, core, parameters) - 1 ./ g_freq(site, frequencies, core, parameters)
 end
 
 
 """Compute the expectation value of the number operator."""
-function number_operator_expectation(site::NTuple{2,Int64}, τ::AbstractVector, core::AndersonCore, parameters::AndersonParameters)
+function number_operator_expectation(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return -g_tau(site, τ, core, parameters)[1] # the size of the list is just one, so we just take the first entry
 end
 
