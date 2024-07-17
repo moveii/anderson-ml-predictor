@@ -135,19 +135,25 @@ function get_exact_self_energies(model_parameters::ModelParameters, suffix::Stri
     length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    self_energies = zeros(ComplexF64, length(parameters), length(model_parameters.ω))
+    self_energies = Array{ComplexF64}(undef, length(parameters), length(model_parameters.ω))
 
     @showprogress Threads.@threads for index in eachindex(parameters)
         self_energies[index, :] = AndersonModel.self_energies((1, 1), model_parameters.ω, core, parameters[index])
     end
 
     if save_on_completion
-        # TODO not working atm, have to split the matrix into indices and values
-        df = DataFrame(self_energies=self_energies)
-        CSV.write("data/exact_self_energies_$suffix.csv", df)
+        save_self_energies(self_energies, suffix)
     end
 
     return self_energies
+end
+
+function save_self_energies(self_energies::Matrix{ComplexF64}, suffix::String)
+    # Convert complex matrix to a format suitable for saving, e.g., split into real and imag parts
+    re_part = real(self_energies)
+    im_part = imag(self_energies)
+    df = DataFrame(RealPart=vec(re_part), ImagPart=vec(im_part))
+    CSV.write("$base_folder/exact_self_energies_$suffix.csv", df)
 end
 
 function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
@@ -209,7 +215,9 @@ function generate_data()
     )
 
     self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
+    time = @elapsed self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
     println(self_ernergies)
+    println(time)
 
     #anderson_parameters = get_anderson_parameters(model_parameters)
 
