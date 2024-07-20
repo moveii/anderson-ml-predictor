@@ -175,13 +175,15 @@ function save_number_operator_expectations(model_parameters::ModelParameters, su
     indices = sort(collect(keys(n_expectations_values)))
     n_expectations_values = [n_expectations_values[i] for i in indices]
 
+    println(n_expectations_values)
+
     df = DataFrame(Index=indices, ExpectedNumberOperator=n_expectations_values)
-    CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
+    #CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
 
     scatter(indices, n_expectations_values, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
     hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
 
-    savefig("$base_folder/number/expected_number_operator_plot_$suffix.png")
+    #savefig("$base_folder/number/expected_number_operator_plot_$suffix.png")
 end
 
 function delta_l(parameters::ModelParameters)::Matrix{Float64}
@@ -232,29 +234,29 @@ function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Comp
     return g0
 end
 
-function get_exact_g(model_parameters::ModelParameters)::Matrix{ComplexF64}
-    parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
-    core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(ComplexF64, length(parameters), length(model_parameters.bases[1]))
-
-    for n in eachindex(parameters)
-        g0[n, :] = AndersonModel.g_freq((1, 1), SparseIR.default_matsubara_sampling_points(model_parameters.bases[n]), core, parameters[n])
-    end
-
-    return g0
-end
-
 function get_exact_g_tau(model_parameters::ModelParameters)::Matrix{Float64}
     parameters = get_anderson_parameters(model_parameters)
     length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(Float64, length(parameters), length(model_parameters.bases[1]))
+    g0 = zeros(Float64, length(parameters), model_parameters.basis_length)
 
     for n in eachindex(parameters)
         g0[n, :] = AndersonModel.g_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
+    end
+
+    return g0
+end
+
+function get_expected_density(model_parameters::ModelParameters)::AbstractVector{Float64}
+    parameters = get_anderson_parameters(model_parameters)
+    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
+
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
+    g0 = zeros(Float64, length(parameters))
+
+    for n in eachindex(parameters)
+        g0[n] = -model_parameters.u[n] * AndersonModel.g_tau((1, 1), [model_parameters.β[n]], core, parameters[n])[1]
     end
 
     return g0
@@ -294,16 +296,6 @@ function generate_data()
     Δl = delta_l(model_parameters)
     Δτ = hybridisation_tau(Δl, model_parameters)
     g0 = g0_freq(Δl, model_parameters)
-
-    #println("hybridisation_tau")
-    #println(Δτ)
-    #println("")
-    #println("g0_freq")
-    #println(g0)
-
-    #println("")
-    #println("g tau with propagator")
-
     propagator_g_tau = get_exact_g_tau(model_parameters)
     #println(propagator_g_tau)
 
@@ -321,14 +313,38 @@ function generate_data()
 
     #println(g)
 
-    sigma = 1 ./ g0 - 1 ./ g
+    sigma = (1 ./ g0 - 1 ./ g) #.- get_expected_density(model_parameters)
+
+    omegas = SparseIR.default_matsubara_sampling_points(model_parameters.bases[1])
+    scatter(Int.(omegas), real(sigma[1, :]), xlabel="matsubara", ylabel="Sigma", title="<N> over observations", legend=false)
+
+    savefig("test3.png")
 
     println(sigma)
 
-    println("starting with old self energie method")
+    sigma_tau = zeros(ComplexF64, (n, model_parameters.basis_length))
 
-    sigma_old = get_exact_self_energies(model_parameters, "")
-    println(sigma_old)
+    for n in 1:n
+        # TODO is it okay to do this? with this we change ωmax
+        basis = model_parameters.bases[n]
+        gl = SparseIR.fit(SparseIR.MatsubaraSampling(basis), sigma[n, :])
+        sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
+    end
+
+    #save_number_operator_expectations(model_parameters, "")
+    println(sigma_tau)
+
+    taus = SparseIR.default_tau_sampling_points(model_parameters.bases[1])
+    scatter(taus, real(sigma_tau[1, :]), xlabel="tau", ylabel="Sigma", title="<N> over observations", legend=false)
+
+    savefig("test4.png")
+
+    #println(propagator_g_tau)
+
+    #println("starting with old self energie method")
+
+    #sigma_old = get_exact_self_energies(model_parameters, "")
+    #println(sigma_old)
 
 
     #time = @elapsed self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
