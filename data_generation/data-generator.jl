@@ -134,10 +134,11 @@ function get_exact_self_energies(model_parameters::ModelParameters, suffix::Stri
     length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    self_energies = Array{ComplexF64}(undef, length(parameters), length(model_parameters.ω))
+    self_energies = Array{ComplexF64}(undef, length(parameters), model_parameters.basis_length)
 
     @showprogress Threads.@threads for index in eachindex(parameters)
-        self_energies[index, :] = AndersonModel.self_energies((1, 1), model_parameters.ω, core, parameters[index])
+        basis = model_parameters.bases[index]
+        self_energies[index, :] = AndersonModel.self_energies((1, 1), SparseIR.default_matsubara_sampling_points(basis), core, parameters[index])
     end
 
     if save_on_completion
@@ -289,41 +290,46 @@ function generate_data()
         distribution_plots, file_suffix
     )
 
+    println("starting with new self energie calculation")
     Δl = delta_l(model_parameters)
     Δτ = hybridisation_tau(Δl, model_parameters)
     g0 = g0_freq(Δl, model_parameters)
 
-    println("hybridisation_tau")
-    println(Δτ)
-    println("")
-    println("g0_freq")
-    println(g0)
+    #println("hybridisation_tau")
+    #println(Δτ)
+    #println("")
+    #println("g0_freq")
+    #println(g0)
 
-    println("")
-    println("g frequency with propagator")
-
-    propagator_g = get_exact_g(model_parameters)
-    println(propagator_g)
-
-    println("")
-    println("g tau with propagator")
+    #println("")
+    #println("g tau with propagator")
 
     propagator_g_tau = get_exact_g_tau(model_parameters)
-    println(propagator_g_tau)
+    #println(propagator_g_tau)
 
-    println("")
-    println("g frequency reconstruction with g tau")
+    #println("")
+    #println("g frequency reconstruction with g tau")
 
-    g_matsubara_reconstruction = zeros(ComplexF64, (n, model_parameters.basis_length))
+    g = zeros(ComplexF64, (n, model_parameters.basis_length))
 
     for n in 1:n
         # TODO is it okay to do this? with this we change ωmax
         basis = model_parameters.bases[n]
         gl = SparseIR.fit(SparseIR.TauSampling(basis), propagator_g_tau[n, :])
-        g_matsubara_reconstruction[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
+        g[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
     end
 
-    println(g_matsubara_reconstruction)
+    #println(g)
+
+    sigma = 1 ./ g0 - 1 ./ g
+
+    println(sigma)
+
+    println("starting with old self energie method")
+
+    sigma_old = get_exact_self_energies(model_parameters, "")
+    println(sigma_old)
+
 
     #time = @elapsed self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
     #println(self_ernergies)

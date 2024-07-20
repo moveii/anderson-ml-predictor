@@ -212,9 +212,22 @@ function greens_operators(site::NTuple{2,Int64}, core::AndersonCore)::Tuple{Oper
 end
 
 
+"""Compute the non-interacting imaginary times Green's for the given Anderson model."""
+function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
+    return Fermions.Propagators.full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
+end
+
+
+
 """Compute the imaginary times Green's for the given Anderson model."""
 function g_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_tau(greens_operators(site, core), τ, full_hamiltonian_eigen(core, parameters), parameters.β)
+end
+
+
+"""Compute the non-interacting Matsubara Green's function for the given Anderson model."""
+function g0_freq(site::NTuple{2,Int64}, frequencies::AbstractVector{FermionicFreq}, core::AndersonCore, parameters::AndersonParameters)::AbstractVector{ComplexF64}
+    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
 
 
