@@ -263,7 +263,7 @@ function get_expected_density(model_parameters::ModelParameters)::AbstractVector
 end
 
 function generate_data()
-    n = 1
+    n = 4
     nbath = 5
 
     ε_lower_boundary = -5.0
@@ -313,12 +313,12 @@ function generate_data()
 
     #println(g)
 
-    sigma = (1 ./ g0 - 1 ./ g) #.- get_expected_density(model_parameters)
+    sigma = (1 ./ g0 - 1 ./ g) .- get_expected_density(model_parameters)
 
     omegas = SparseIR.default_matsubara_sampling_points(model_parameters.bases[1])
-    scatter(Int.(omegas), real(sigma[1, :]), xlabel="matsubara", ylabel="Sigma", title="<N> over observations", legend=false)
+    scatter(Int.(omegas), imag(sigma[1, :]), xlabel="matsubara", ylabel="Sigma", title="<N> over observations", legend=false)
 
-    savefig("test3.png")
+    savefig("test1_im.png")
 
     println(sigma)
 
@@ -335,9 +335,9 @@ function generate_data()
     println(sigma_tau)
 
     taus = SparseIR.default_tau_sampling_points(model_parameters.bases[1])
-    scatter(taus, real(sigma_tau[1, :]), xlabel="tau", ylabel="Sigma", title="<N> over observations", legend=false)
+    scatter(taus, imag(sigma_tau[1, :]), xlabel="tau", ylabel="Sigma", title="<N> over observations", legend=false)
 
-    savefig("test4.png")
+    savefig("test2_im.png")
 
     #println(propagator_g_tau)
 
