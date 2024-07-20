@@ -212,41 +212,10 @@ function greens_operators(site::NTuple{2,Int64}, core::AndersonCore)::Tuple{Oper
 end
 
 
-"""Compute the non-interacting imaginary times Green's for the given Anderson model."""
-function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
-    return Fermions.Propagators.full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
-end
-
-
-
 """Compute the imaginary times Green's for the given Anderson model."""
 function g_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_tau(greens_operators(site, core), τ, full_hamiltonian_eigen(core, parameters), parameters.β)
 end
-
-
-"""Compute the hybridisation function for the given Anderson model."""
-function hybridisation_tau(τ::AbstractVector{}, parameters::AndersonParameters)
-    sum = zeros(length(τ))
-
-    for i in 1:nbath(parameters)
-        if parameters.ε[i] > 0
-            sum += (parameters.v[i] .* parameters.v[i]) .* exp.(-τ .* parameters.ε[i]) ./ (1 + exp(-parameters.β * parameters.ε[i]))
-        elseif parameters.ε[i] < 0
-            sum += (parameters.v[i] .* parameters.v[i]) .* exp.((parameters.β .- τ) .* parameters.ε[i]) ./ (1 + exp(parameters.β * parameters.ε[i]))
-        else
-            println("ERROR")
-        end
-    end
-
-    return sum
-end
-
-"""Compute the non-interacting Matsubara Green's function for the given Anderson model."""
-function g0_freq(site::NTuple{2,Int64}, frequencies::AbstractVector{FermionicFreq}, core::AndersonCore, parameters::AndersonParameters)::AbstractVector{ComplexF64}
-    return Fermions.Propagators.full_freq(greens_operators(site, core), frequencies, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
-end
-
 
 
 """Compute the Matsubara Green's function for the given Anderson model."""

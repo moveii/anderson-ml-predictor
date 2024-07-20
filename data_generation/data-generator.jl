@@ -147,34 +147,6 @@ function get_exact_self_energies(model_parameters::ModelParameters, suffix::Stri
     return self_energies
 end
 
-function get_exact_g0(model_parameters::ModelParameters)::Matrix{ComplexF64}
-    parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
-    core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(ComplexF64, length(parameters), length(model_parameters.bases[1]))
-
-    for n in eachindex(parameters)
-        g0[n, :] = AndersonModel.g0_freq((1, 1), SparseIR.default_matsubara_sampling_points(model_parameters.bases[n]), core, parameters[n])
-    end
-
-    return g0
-end
-
-function get_exact_g0_tau(model_parameters::ModelParameters)::Matrix{Float64}
-    parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
-    core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(Float64, length(parameters), length(model_parameters.bases[1]))
-
-    for n in eachindex(parameters)
-        g0[n, :] = AndersonModel.g0_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
-    end
-
-    return g0
-end
-
 function save_self_energies(self_energies::Matrix{ComplexF64}, suffix::String)
     # Convert complex matrix to a format suitable for saving, e.g., split into real and imag parts
     re_part = real(self_energies)
@@ -225,9 +197,8 @@ function delta_l(parameters::ModelParameters)::Matrix{Float64}
     return Δl
 end
 
-function hybridisation_tau_local(parameters::ModelParameters)::Matrix{Float64}
+function hybridisation_tau(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Float64}
     Δτ = zeros(Float64, (parameters.n, parameters.basis_length))
-    Δl = delta_l(parameters)
 
     for n in 1:parameters.n
         Δτ[n, :] = evaluate(SparseIR.TauSampling(parameters.bases[n]), Δl[n, :])
@@ -236,48 +207,17 @@ function hybridisation_tau_local(parameters::ModelParameters)::Matrix{Float64}
     return Δτ
 end
 
-function hybridisation_tau_local_old(parameters::ModelParameters)::Matrix{Float64}
-
-    Δτ = zeros((parameters.n, length(parameters.bases[1])))
-
-    for n in 1:parameters.n
-        basis = parameters.bases[n]
-        sum = zeros(length(basis))
-
-        for l in 1:length(basis)
-            for p in 1:parameters.nbath
-                sum[l] += parameters.v[n, p] * parameters.v[n, p] * basis.s[l] * basis.v[l](parameters.ε[n, p])
-            end
-        end
-
-        println(sum)
-        Δτ[n, :] = evaluate(SparseIR.TauSampling(basis), sum)
-    end
-
-    return Δτ
-end
-
-function g0_trafo_approach(parameters::ModelParameters)::Tuple{Matrix{ComplexF64},Matrix{ComplexF64}}
-    sum = zeros((parameters.n, length(parameters.bases[1])))
-    Δν = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
+function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{ComplexF64}
+    Δν = zeros(ComplexF64, (parameters.n, parameters.basis_length))
 
     for n in 1:parameters.n
-        basis = parameters.bases[n]
-        sum = zeros(length(basis))
-
-        for l in 1:length(basis)
-            for p in 1:parameters.nbath
-                sum[l] += parameters.v[n, p] * parameters.v[n, p] * basis.s[l] * basis.v[l](parameters.ε[n, p])
-            end
-        end
-
-        Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(basis), -sum)
+        Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(parameters.bases[n]), -Δl[n, :])
     end
 
     # TODO somewhere is a minus missing... the manual approach is * (-1) this one without the minus
     # the manual approach and the propagator are equal, thus it should be an error here somewhere
 
-    g0 = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
+    g0 = zeros(ComplexF64, (parameters.n, parameters.basis_length))
 
     for n in 1:parameters.n
         basis = parameters.bases[n]
@@ -288,35 +228,35 @@ function g0_trafo_approach(parameters::ModelParameters)::Tuple{Matrix{ComplexF64
         end
     end
 
-    return Δν, g0
+    return g0
 end
 
-function g0_manual_approach(parameters::ModelParameters)::Tuple{Matrix{ComplexF64},Matrix{ComplexF64}}
-    Δν = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
+function get_exact_g(model_parameters::ModelParameters)::Matrix{ComplexF64}
+    parameters = get_anderson_parameters(model_parameters)
+    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
-    for n in 1:parameters.n
-        basis = parameters.bases[n]
-        omegas = SparseIR.default_matsubara_sampling_points(basis)
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
+    g0 = zeros(ComplexF64, length(parameters), length(model_parameters.bases[1]))
 
-        for l in 1:length(basis)
-            for p in 1:parameters.nbath
-                Δν[n, l] += (parameters.v[n, p] * parameters.v[n, p]) / (SparseIR.valueim(omegas[l], parameters.β[n]) - parameters.ε[n, p])
-            end
-        end
+    for n in eachindex(parameters)
+        g0[n, :] = AndersonModel.g_freq((1, 1), SparseIR.default_matsubara_sampling_points(model_parameters.bases[n]), core, parameters[n])
     end
 
-    g0 = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
+    return g0
+end
 
-    for n in 1:parameters.n
-        basis = parameters.bases[n]
-        omegas = SparseIR.default_matsubara_sampling_points(basis)
+function get_exact_g_tau(model_parameters::ModelParameters)::Matrix{Float64}
+    parameters = get_anderson_parameters(model_parameters)
+    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
-        for l in 1:length(basis)
-            g0[n, l] = 1 / (SparseIR.valueim(omegas[l], parameters.β[n]) - Δν[n, l])
-        end
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
+    g0 = zeros(Float64, length(parameters), length(model_parameters.bases[1]))
+
+    for n in eachindex(parameters)
+        g0[n, :] = AndersonModel.g_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
     end
 
-    return Δν, g0
+    return g0
 end
 
 function generate_data()
@@ -349,70 +289,41 @@ function generate_data()
         distribution_plots, file_suffix
     )
 
-    println("Starting with hybridisation Function")
-    println("new method for calculating:")
+    Δl = delta_l(model_parameters)
+    Δτ = hybridisation_tau(Δl, model_parameters)
+    g0 = g0_freq(Δl, model_parameters)
 
-    Δτ = hybridisation_tau_local(model_parameters)
+    println("hybridisation_tau")
     println(Δτ)
-
     println("")
-    println("old method for calculating:")
-
-    anderson_parameters = get_anderson_parameters(model_parameters)
-    for (n, parameters) in enumerate(anderson_parameters)
-        basis = model_parameters.bases[n]
-        tau = hybridisation_tau(SparseIR.default_tau_sampling_points(basis), parameters)
-        println(tau)
-    end
-
-    println("")
-    println("Now looking at different approaches to g0")
-    println("")
-
-    Δν, g0 = g0_trafo_approach(model_parameters)
-
-    println("hybridisation function (transfo)")
-    println(Δν)
-
-    println("")
-    println("g0 (transfo)")
-    println(g0)
-
-    Δν, g0 = g0_manual_approach(model_parameters)
-
-    println("")
-    println("hybridisation function (manual)")
-    println(Δν)
-
-    println("")
-    println("g0 (manual)")
+    println("g0_freq")
     println(g0)
 
     println("")
-    println("g0 frequency with propagator")
+    println("g frequency with propagator")
 
-    propagator_g0 = get_exact_g0(model_parameters)
-    println(propagator_g0)
-
-    println("")
-    println("g0 tau with propagator")
-
-    propagator_g0_tau = get_exact_g0_tau(model_parameters)
-    println(propagator_g0_tau)
+    propagator_g = get_exact_g(model_parameters)
+    println(propagator_g)
 
     println("")
-    println("g0 frequency reconstruction with g0 tau")
+    println("g tau with propagator")
 
-    g0_matsubara_reconstruction = zeros(ComplexF64, (n, model_parameters.basis_length))
+    propagator_g_tau = get_exact_g_tau(model_parameters)
+    println(propagator_g_tau)
+
+    println("")
+    println("g frequency reconstruction with g tau")
+
+    g_matsubara_reconstruction = zeros(ComplexF64, (n, model_parameters.basis_length))
 
     for n in 1:n
         # TODO is it okay to do this? with this we change ωmax
         basis = model_parameters.bases[n]
-        gl = SparseIR.fit(SparseIR.TauSampling(basis), propagator_g0_tau[n, :])
-        g0_matsubara_reconstruction[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
+        gl = SparseIR.fit(SparseIR.TauSampling(basis), propagator_g_tau[n, :])
+        g_matsubara_reconstruction[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
     end
 
-    println(g0_matsubara_reconstruction)
+    println(g_matsubara_reconstruction)
 
     #time = @elapsed self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
     #println(self_ernergies)
