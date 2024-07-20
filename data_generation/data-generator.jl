@@ -23,7 +23,8 @@ struct ModelParameters
     v::Matrix{Float64} # hopping amplitude
     β::Vector{Float64} # thermodynamic beta (1/T)
 
-    basis::FiniteTempBasis
+    basis_length::Int # the length of all bases
+    bases::Vector{FiniteTempBasis} # basis scaled to the individual temperature
 
     function ModelParameters(
         n::Int, nbath::Int,
@@ -65,8 +66,9 @@ struct ModelParameters
 
         # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy, which defines our ωmax
         basis = SparseIR.FiniteTempBasis(Fermionic(), 1 / t_lower_boundary, ε_upper_boundary, nothing)
+        bases = [SparseIR.rescale(basis, β[i]) for i in 1:n] # TODO is it okay to do this? with this we change ωmax
 
-        return new(n, nbath, ε_imp, ε, u, v, β, basis)
+        return new(n, nbath, ε_imp, ε, u, v, β, length(basis), bases)
     end
 end
 
@@ -150,11 +152,10 @@ function get_exact_g0(model_parameters::ModelParameters)::Matrix{ComplexF64}
     length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(ComplexF64, length(parameters), length(model_parameters.basis))
+    g0 = zeros(ComplexF64, length(parameters), length(model_parameters.bases[1]))
 
     for n in eachindex(parameters)
-        local_basis = SparseIR.rescale(model_parameters.basis, model_parameters.β[n])
-        g0[n, :] = AndersonModel.g0_freq((1, 1), SparseIR.default_matsubara_sampling_points(local_basis), core, parameters[n])
+        g0[n, :] = AndersonModel.g0_freq((1, 1), SparseIR.default_matsubara_sampling_points(model_parameters.bases[n]), core, parameters[n])
     end
 
     return g0
@@ -165,12 +166,10 @@ function get_exact_g0_tau(model_parameters::ModelParameters)::Matrix{Float64}
     length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
 
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(Float64, length(parameters), length(model_parameters.basis))
+    g0 = zeros(Float64, length(parameters), length(model_parameters.bases[1]))
 
     for n in eachindex(parameters)
-        # TODO is it okay to do this? with this we change ωmax
-        local_basis = SparseIR.rescale(model_parameters.basis, model_parameters.β[n])
-        g0[n, :] = AndersonModel.g0_tau((1, 1), SparseIR.default_tau_sampling_points(local_basis), core, parameters[n])
+        g0[n, :] = AndersonModel.g0_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
     end
 
     return g0
@@ -212,91 +211,109 @@ function save_number_operator_expectations(model_parameters::ModelParameters, su
     savefig("$base_folder/number/expected_number_operator_plot_$suffix.png")
 end
 
-function hybridisation_tau_local(parameters::ModelParameters)::Matrix{Float64}
-
-    Δτ = zeros((parameters.n, length(parameters.basis)))
+function delta_l(parameters::ModelParameters)::Matrix{Float64}
+    Δl = zeros(Float64, (parameters.n, parameters.basis_length))
 
     for n in 1:parameters.n
-        # TODO is it okay to do this? with this we change ωmax
-        local_basis = SparseIR.rescale(parameters.basis, parameters.β[n])
-        sum = zeros(length(parameters.basis))
-
-        for l in 1:length(local_basis)
+        for l in 1:parameters.basis_length
             for p in 1:parameters.nbath
-                sum[l] += parameters.v[n, p] * parameters.v[n, p] * local_basis.s[l] * local_basis.v[l](parameters.ε[n, p])
+                Δl[n, l] += parameters.v[n, p] * parameters.v[n, p] * parameters.bases[n].s[l] * parameters.bases[n].v[l](parameters.ε[n, p])
+            end
+        end
+    end
+
+    return Δl
+end
+
+function hybridisation_tau_local(parameters::ModelParameters)::Matrix{Float64}
+    Δτ = zeros(Float64, (parameters.n, parameters.basis_length))
+    Δl = delta_l(parameters)
+
+    for n in 1:parameters.n
+        Δτ[n, :] = evaluate(SparseIR.TauSampling(parameters.bases[n]), Δl[n, :])
+    end
+
+    return Δτ
+end
+
+function hybridisation_tau_local_old(parameters::ModelParameters)::Matrix{Float64}
+
+    Δτ = zeros((parameters.n, length(parameters.bases[1])))
+
+    for n in 1:parameters.n
+        basis = parameters.bases[n]
+        sum = zeros(length(basis))
+
+        for l in 1:length(basis)
+            for p in 1:parameters.nbath
+                sum[l] += parameters.v[n, p] * parameters.v[n, p] * basis.s[l] * basis.v[l](parameters.ε[n, p])
             end
         end
 
-        # TODO i guess we need to create a new TauSampling object every time?
-        Δτ[n, :] = evaluate(SparseIR.TauSampling(local_basis), sum)
+        println(sum)
+        Δτ[n, :] = evaluate(SparseIR.TauSampling(basis), sum)
     end
 
     return Δτ
 end
 
 function g0_trafo_approach(parameters::ModelParameters)::Tuple{Matrix{ComplexF64},Matrix{ComplexF64}}
-    sum = zeros((parameters.n, length(parameters.basis)))
-    Δν = zeros(ComplexF64, (parameters.n, length(parameters.basis)))
+    sum = zeros((parameters.n, length(parameters.bases[1])))
+    Δν = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
 
     for n in 1:parameters.n
-        # TODO is it okay to do this? with this we change ωmax
-        local_basis = SparseIR.rescale(parameters.basis, parameters.β[n])
-        sum = zeros(length(parameters.basis))
+        basis = parameters.bases[n]
+        sum = zeros(length(basis))
 
-        for l in 1:length(local_basis)
+        for l in 1:length(basis)
             for p in 1:parameters.nbath
-                sum[l] += parameters.v[n, p] * parameters.v[n, p] * local_basis.s[l] * local_basis.v[l](parameters.ε[n, p])
+                sum[l] += parameters.v[n, p] * parameters.v[n, p] * basis.s[l] * basis.v[l](parameters.ε[n, p])
             end
         end
 
-        Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(local_basis), -sum)
+        Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(basis), -sum)
     end
 
     # TODO somewhere is a minus missing... the manual approach is * (-1) this one without the minus
     # the manual approach and the propagator are equal, thus it should be an error here somewhere
 
-    g0 = zeros(ComplexF64, (parameters.n, length(parameters.basis)))
+    g0 = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
 
     for n in 1:parameters.n
+        basis = parameters.bases[n]
+        omegas = SparseIR.default_matsubara_sampling_points(basis)
 
-        local_basis = SparseIR.rescale(parameters.basis, parameters.β[n])
-        omegas = SparseIR.default_matsubara_sampling_points(local_basis)
-
-        for l in 1:length(parameters.basis)
+        for l in 1:length(basis)
             g0[n, l] = 1 / (SparseIR.valueim(omegas[l], parameters.β[n]) - Δν[n, l])
         end
-
     end
 
     return Δν, g0
 end
 
 function g0_manual_approach(parameters::ModelParameters)::Tuple{Matrix{ComplexF64},Matrix{ComplexF64}}
-    Δν = zeros(ComplexF64, (parameters.n, length(parameters.basis)))
+    Δν = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
 
     for n in 1:parameters.n
+        basis = parameters.bases[n]
+        omegas = SparseIR.default_matsubara_sampling_points(basis)
 
-        local_basis = SparseIR.rescale(parameters.basis, parameters.β[n])
-        omegas = SparseIR.default_matsubara_sampling_points(local_basis)
-
-        for l in 1:length(parameters.basis)
+        for l in 1:length(basis)
             for p in 1:parameters.nbath
                 Δν[n, l] += (parameters.v[n, p] * parameters.v[n, p]) / (SparseIR.valueim(omegas[l], parameters.β[n]) - parameters.ε[n, p])
             end
         end
     end
 
-    g0 = zeros(ComplexF64, (parameters.n, length(parameters.basis)))
+    g0 = zeros(ComplexF64, (parameters.n, length(parameters.bases[1])))
 
     for n in 1:parameters.n
+        basis = parameters.bases[n]
+        omegas = SparseIR.default_matsubara_sampling_points(basis)
 
-        local_basis = SparseIR.rescale(parameters.basis, parameters.β[n])
-        omegas = SparseIR.default_matsubara_sampling_points(local_basis)
-
-        for l in 1:length(parameters.basis)
+        for l in 1:length(basis)
             g0[n, l] = 1 / (SparseIR.valueim(omegas[l], parameters.β[n]) - Δν[n, l])
         end
-
     end
 
     return Δν, g0
@@ -343,8 +360,8 @@ function generate_data()
 
     anderson_parameters = get_anderson_parameters(model_parameters)
     for (n, parameters) in enumerate(anderson_parameters)
-        local_basis = SparseIR.rescale(model_parameters.basis, model_parameters.β[n])
-        tau = hybridisation_tau(SparseIR.default_tau_sampling_points(local_basis), parameters)
+        basis = model_parameters.bases[n]
+        tau = hybridisation_tau(SparseIR.default_tau_sampling_points(basis), parameters)
         println(tau)
     end
 
@@ -374,8 +391,8 @@ function generate_data()
     println("")
     println("g0 frequency with propagator")
 
-    #propagator_g0 = get_exact_g0(model_parameters)
-    #println(propagator_g0)
+    propagator_g0 = get_exact_g0(model_parameters)
+    println(propagator_g0)
 
     println("")
     println("g0 tau with propagator")
@@ -386,13 +403,13 @@ function generate_data()
     println("")
     println("g0 frequency reconstruction with g0 tau")
 
-    g0_matsubara_reconstruction = zeros(ComplexF64, (n, length(model_parameters.basis)))
+    g0_matsubara_reconstruction = zeros(ComplexF64, (n, model_parameters.basis_length))
 
     for n in 1:n
         # TODO is it okay to do this? with this we change ωmax
-        local_basis = SparseIR.rescale(model_parameters.basis, model_parameters.β[n])
-        gl = SparseIR.fit(SparseIR.TauSampling(local_basis), propagator_g0_tau[n, :])
-        g0_matsubara_reconstruction[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(local_basis), gl)
+        basis = model_parameters.bases[n]
+        gl = SparseIR.fit(SparseIR.TauSampling(basis), propagator_g0_tau[n, :])
+        g0_matsubara_reconstruction[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
     end
 
     println(g0_matsubara_reconstruction)

@@ -213,12 +213,6 @@ end
 
 
 """Compute the non-interacting imaginary times Green's for the given Anderson model."""
-function g0_tau_max_beta(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
-    return Fermions.Propagators.full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), 5000)
-end
-
-
-"""Compute the non-interacting imaginary times Green's for the given Anderson model."""
 function g0_tau(site::NTuple{2,Int64}, τ::AbstractVector{Float64}, core::AndersonCore, parameters::AndersonParameters)
     return Fermions.Propagators.full_tau(greens_operators(site, core), τ, non_interacting_hamiltonian_eigen(core, parameters), parameters.β)
 end
