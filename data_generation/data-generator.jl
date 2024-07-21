@@ -225,10 +225,11 @@ end
 function sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}; suffix::String="", save_on_completion::Bool=false)::Matrix{ComplexF64}
     sigma_iv = (1 ./ g0 - 1 ./ g) .- (model_parameters.u .* occupations)
 
-    scatter(real(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Real(Σν)", title="Σν over frequency", legend=false)
+    omegas = SparseIR.default_matsubara_sampling_points(model_parameters.bases[1])
+    scatter(Int.(omegas), real(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Real(Σν)", title="Σν over frequency", legend=false)
     savefig("$base_folder/sigma_freq_real.png")
 
-    scatter(imag(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Im(Σν)", title="Σν over frequency", legend=false)
+    scatter(Int.(omegas), imag(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Im(Σν)", title="Σν over frequency", legend=false)
     savefig("$base_folder/sigma_freq_im.png")
 
     sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
@@ -239,10 +240,11 @@ function sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g:
         sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
     end
 
-    scatter(real(sigma_tau[1, :]), xlabel="Time", ylabel="Real(Στ)", title="Στ over time", legend=false)
+    taus = SparseIR.default_tau_sampling_points(model_parameters.bases[1])
+    scatter(taus, real(sigma_tau[1, :]), xlabel="Time", ylabel="Real(Στ)", title="Στ over time", legend=false)
     savefig("$base_folder/sigma_tau_real.png")
 
-    scatter(imag(sigma_tau[1, :]), xlabel="Timey", ylabel="Im(Στ)", title="Στ over time", legend=false)
+    scatter(taus, imag(sigma_tau[1, :]), xlabel="Time", ylabel="Im(Στ)", title="Στ over time", legend=false)
     savefig("$base_folder/sigma_tau_im.png")
 
     if save_on_completion
@@ -289,7 +291,7 @@ end
 
 
 function generate_data()
-    n = 1
+    n = 4
     nbath = 5
 
     ε_lower_boundary = -5.0
