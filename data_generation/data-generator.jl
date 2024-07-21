@@ -32,7 +32,7 @@ struct ModelParameters
         u_lower_boundary::Number,
         t_lower_boundary::Number, t_upper_boundary::Number, temperature_scale::Number,
         v_lower_boundary::Number, v_upper_boundary::Number,
-        generate_distribution_plots::Bool, file_suffix::String
+        generate_distribution_plots::Bool; file_suffix::String=""
     )::ModelParameters
         n > 0 || throw(DomainError(n, "'n' must be positive."))
         nbath > 0 || throw(DomainError(nbath, "'nbath' must be positive."))
@@ -72,9 +72,11 @@ struct ModelParameters
     end
 end
 
+
 function uniform_distribution(lower_boundary::Number, upper_boundary::Number, n::Int)
     return rand(Uniform(lower_boundary, upper_boundary), n)
 end
+
 
 function exponential_distribution(scale::Number, boundary::Number, n::Int)
     scale > 0 || throw(DomainError(scale, "The scale must be positive."))
@@ -92,6 +94,7 @@ function exponential_distribution(scale::Number, boundary::Number, n::Int)
 
     return values[1:n]
 end
+
 
 function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64}, suffix::String)
     base = "$base_folder/distributions"
@@ -117,6 +120,7 @@ function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::
     CSV.write("$base/coulomb_interaction_distribution_$suffix.csv", DataFrame(CoulombInteractionStrengths=u))
 end
 
+
 # this function returns the paramaters defined in 'ModelParameters' wrapped as 'AndersonParameters', where each instance is its own model
 function get_anderson_parameters(model_parameters::ModelParameters)
     n = model_parameters.n
@@ -129,67 +133,11 @@ function get_anderson_parameters(model_parameters::ModelParameters)
     return [AndersonParameters(u[i], ε_imp[i], ε[i, :], v[i, :], β[i]) for i in 1:n]
 end
 
-function get_exact_self_energies(model_parameters::ModelParameters, suffix::String, save_on_completion::Bool=false)::Matrix{ComplexF64}
-    parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
-    core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    self_energies = Array{ComplexF64}(undef, length(parameters), model_parameters.basis_length)
-
-    @showprogress Threads.@threads for index in eachindex(parameters)
-        basis = model_parameters.bases[index]
-        self_energies[index, :] = AndersonModel.self_energies((1, 1), SparseIR.default_matsubara_sampling_points(basis), core, parameters[index])
-    end
-
-    if save_on_completion
-        save_self_energies(self_energies, suffix)
-    end
-
-    return self_energies
-end
-
-function save_self_energies(self_energies::Matrix{ComplexF64}, suffix::String)
-    # Convert complex matrix to a format suitable for saving, e.g., split into real and imag parts
-    re_part = real(self_energies)
-    im_part = imag(self_energies)
-    df = DataFrame(RealPart=vec(re_part), ImagPart=vec(im_part))
-    CSV.write("$base_folder/exact_self_energies_$suffix.csv", df)
-end
-
-function save_number_operator_expectations(model_parameters::ModelParameters, suffix::String)
-    n_expectations_values = Dict{Int,Float64}()
-    anderson_parameters = get_anderson_parameters(model_parameters)
-
-    async_lock = ReentrantLock() # lock for thread-safe operations
-
-    @showprogress Threads.@threads for n in eachindex(anderson_parameters)
-        core = AndersonCore(model_parameters.nbath)
-        n_expectations = number_operator_expectation((1, 1), [model_parameters.β[n]], core, anderson_parameters[n])
-
-        lock(async_lock) do
-            n_expectations_values[n] = n_expectations
-        end
-    end
-
-    # we sort the result, so there is no randomness between runs
-    indices = sort(collect(keys(n_expectations_values)))
-    n_expectations_values = [n_expectations_values[i] for i in indices]
-
-    println(n_expectations_values)
-
-    df = DataFrame(Index=indices, ExpectedNumberOperator=n_expectations_values)
-    #CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
-
-    scatter(indices, n_expectations_values, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
-    hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
-
-    #savefig("$base_folder/number/expected_number_operator_plot_$suffix.png")
-end
 
 function delta_l(parameters::ModelParameters)::Matrix{Float64}
     Δl = zeros(Float64, (parameters.n, parameters.basis_length))
 
-    for n in 1:parameters.n
+    @showprogress desc = "Δl" Threads.@threads for n in 1:parameters.n
         for l in 1:parameters.basis_length
             for p in 1:parameters.nbath
                 Δl[n, l] += parameters.v[n, p] * parameters.v[n, p] * parameters.bases[n].s[l] * parameters.bases[n].v[l](parameters.ε[n, p])
@@ -200,20 +148,22 @@ function delta_l(parameters::ModelParameters)::Matrix{Float64}
     return Δl
 end
 
+
 function hybridisation_tau(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Float64}
     Δτ = zeros(Float64, (parameters.n, parameters.basis_length))
 
-    for n in 1:parameters.n
+    @showprogress desc = "Δτ" Threads.@threads for n in 1:parameters.n
         Δτ[n, :] = evaluate(SparseIR.TauSampling(parameters.bases[n]), Δl[n, :])
     end
 
     return Δτ
 end
 
+
 function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{ComplexF64}
     Δν = zeros(ComplexF64, (parameters.n, parameters.basis_length))
 
-    for n in 1:parameters.n
+    Threads.@threads for n in 1:parameters.n
         Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(parameters.bases[n]), -Δl[n, :])
     end
 
@@ -222,7 +172,7 @@ function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Comp
 
     g0 = zeros(ComplexF64, (parameters.n, parameters.basis_length))
 
-    for n in 1:parameters.n
+    @showprogress desc = "g0" Threads.@threads for n in 1:parameters.n
         basis = parameters.bases[n]
         omegas = SparseIR.default_matsubara_sampling_points(basis)
 
@@ -234,36 +184,112 @@ function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Comp
     return g0
 end
 
-function get_exact_g_tau(model_parameters::ModelParameters)::Matrix{Float64}
+
+function g_freq(model_parameters::ModelParameters)::Matrix{ComplexF64}
     parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(Float64, length(parameters), model_parameters.basis_length)
 
-    for n in eachindex(parameters)
-        g0[n, :] = AndersonModel.g_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
+    # we calculate g_tau first, and then transform it into g_freq, because its way faster
+    g_tau = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
+
+    @showprogress desc = "g_tau" Threads.@threads for n in 1:model_parameters.n
+        g_tau[n, :] = AndersonModel.g_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]), core, parameters[n])
     end
 
-    return g0
-end
+    g_freq = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
 
-function get_expected_density(model_parameters::ModelParameters)::AbstractVector{Float64}
-    parameters = get_anderson_parameters(model_parameters)
-    length(parameters) == length(model_parameters.β) || throw(DimensionMismatch("Parameters and β must have the same length."))
-
-    core = AndersonCore(AndersonModel.nbath(parameters[1]))
-    g0 = zeros(Float64, length(parameters))
-
-    for n in eachindex(parameters)
-        g0[n] = -model_parameters.u[n] * AndersonModel.g_tau((1, 1), [model_parameters.β[n]], core, parameters[n])[1]
+    @showprogress desc = "g_freq" Threads.@threads for n in 1:model_parameters.n
+        basis = model_parameters.bases[n]
+        gl = SparseIR.fit(SparseIR.TauSampling(basis), g_tau[n, :])
+        g_freq[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
     end
 
-    return g0
+    return g_freq
 end
+
+
+function get_occupations(model_parameters::ModelParameters)::AbstractVector{Float64}
+    parameters = get_anderson_parameters(model_parameters)
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
+
+    occupations = zeros(Float64, length(parameters))
+
+    @showprogress desc = "<n>" Threads.@threads for n in 1:model_parameters.n
+        occupations[n] = -AndersonModel.g_tau((1, 1), [model_parameters.β[n]], core, parameters[n])[1]
+    end
+
+    return occupations
+end
+
+
+function sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}; suffix::String="", save_on_completion::Bool=false)::Matrix{ComplexF64}
+    sigma_iv = (1 ./ g0 - 1 ./ g) .- (model_parameters.u .* occupations)
+
+    scatter(real(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Real(Σν)", title="Σν over frequency", legend=false)
+    savefig("$base_folder/sigma_freq_real.png")
+
+    scatter(imag(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Im(Σν)", title="Σν over frequency", legend=false)
+    savefig("$base_folder/sigma_freq_im.png")
+
+    sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
+
+    @showprogress desc = "Στ" Threads.@threads for n in 1:model_parameters.n
+        basis = model_parameters.bases[n]
+        gl = SparseIR.fit(SparseIR.MatsubaraSampling(basis), sigma_iv[n, :])
+        sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
+    end
+
+    scatter(real(sigma_tau[1, :]), xlabel="Time", ylabel="Real(Στ)", title="Στ over time", legend=false)
+    savefig("$base_folder/sigma_tau_real.png")
+
+    scatter(imag(sigma_tau[1, :]), xlabel="Timey", ylabel="Im(Στ)", title="Στ over time", legend=false)
+    savefig("$base_folder/sigma_tau_im.png")
+
+    if save_on_completion
+        save_self_energies(sigma_tau; suffix)
+    end
+
+    return sigma_tau
+end
+
+
+function save_self_energies(self_energies::Matrix{ComplexF64}; suffix::String="")
+    # Convert complex matrix to a format suitable for saving, e.g., split into real and imag parts
+    re_part = real(self_energies)
+    im_part = imag(self_energies)
+    df = DataFrame(RealPart=vec(re_part), ImagPart=vec(im_part))
+    CSV.write("$base_folder/exact_self_energies_$suffix.csv", df)
+end
+
+
+function save_occupations(model_parameters::ModelParameters; suffix::String="")
+    occupations = get_occupations(model_parameters)
+
+    df = DataFrame(occupation=occupations)
+    CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
+
+    scatter(occupations, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
+    hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
+
+    savefig("$base_folder/number/expected_number_operator_plot_$suffix.png")
+end
+
+
+function gen(model_parameters::ModelParameters)
+    Δl = delta_l(model_parameters)
+    Δτ = hybridisation_tau(Δl, model_parameters)
+
+    g0 = g0_freq(Δl, model_parameters)
+    g = g_freq(model_parameters)
+
+    occupations = get_occupations(model_parameters)
+
+    sigma = sigma_tau(model_parameters, g0, g, occupations)
+end
+
 
 function generate_data()
-    n = 4
+    n = 1
     nbath = 5
 
     ε_lower_boundary = -5.0
@@ -278,7 +304,7 @@ function generate_data()
     v_lower_boundary = -5.0
     v_higher_boundary = 5.0
 
-    distribution_plots = false
+    generate_distribution_plots = false
     file_suffix = "1k"
 
     println("Generating $n samples with $nbath bath sites.")
@@ -289,72 +315,14 @@ function generate_data()
         u_lower_boundary,
         t_lower_boundary, t_upper_boundary, temperature_scale,
         v_lower_boundary, v_higher_boundary,
-        distribution_plots, file_suffix
+        generate_distribution_plots; file_suffix
     )
 
-    println("starting with new self energie calculation")
-    Δl = delta_l(model_parameters)
-    Δτ = hybridisation_tau(Δl, model_parameters)
-    g0 = g0_freq(Δl, model_parameters)
-    propagator_g_tau = get_exact_g_tau(model_parameters)
-    #println(propagator_g_tau)
+    println("starting")
+    time = @elapsed gen(model_parameters)
+    println(time)
 
-    #println("")
-    #println("g frequency reconstruction with g tau")
-
-    g = zeros(ComplexF64, (n, model_parameters.basis_length))
-
-    for n in 1:n
-        # TODO is it okay to do this? with this we change ωmax
-        basis = model_parameters.bases[n]
-        gl = SparseIR.fit(SparseIR.TauSampling(basis), propagator_g_tau[n, :])
-        g[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
-    end
-
-    #println(g)
-
-    sigma = (1 ./ g0 - 1 ./ g) .- get_expected_density(model_parameters)
-
-    omegas = SparseIR.default_matsubara_sampling_points(model_parameters.bases[1])
-    scatter(Int.(omegas), imag(sigma[1, :]), xlabel="matsubara", ylabel="Sigma", title="<N> over observations", legend=false)
-
-    savefig("test1_im.png")
-
-    println(sigma)
-
-    sigma_tau = zeros(ComplexF64, (n, model_parameters.basis_length))
-
-    for n in 1:n
-        # TODO is it okay to do this? with this we change ωmax
-        basis = model_parameters.bases[n]
-        gl = SparseIR.fit(SparseIR.MatsubaraSampling(basis), sigma[n, :])
-        sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
-    end
-
-    #save_number_operator_expectations(model_parameters, "")
-    println(sigma_tau)
-
-    taus = SparseIR.default_tau_sampling_points(model_parameters.bases[1])
-    scatter(taus, imag(sigma_tau[1, :]), xlabel="tau", ylabel="Sigma", title="<N> over observations", legend=false)
-
-    savefig("test2_im.png")
-
-    #println(propagator_g_tau)
-
-    #println("starting with old self energie method")
-
-    #sigma_old = get_exact_self_energies(model_parameters, "")
-    #println(sigma_old)
-
-
-    #time = @elapsed self_ernergies = get_exact_self_energies(model_parameters, file_suffix, false)
-    #println(self_ernergies)
-    #println(time)
-
-    #
-
-    #save_number_operator_expectations(model_parameters, file_suffix)
-
+    # save_occupations(model_parameters; suffix=file_suffix)
 end
 
 Random.seed!(1) # for comparability
