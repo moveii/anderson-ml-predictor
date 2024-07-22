@@ -31,8 +31,8 @@ struct ModelParameters
         ε_lower_boundary::Number, ε_upper_boundary::Number,
         u_lower_boundary::Number,
         t_lower_boundary::Number, t_upper_boundary::Number, temperature_scale::Number,
-        v_lower_boundary::Number, v_upper_boundary::Number,
-        generate_distribution_plots::Bool; file_suffix::String=""
+        v_lower_boundary::Number, v_upper_boundary::Number;
+        generate_distribution_plots::Bool=false, file_suffix::String=""
     )::ModelParameters
         n > 0 || throw(DomainError(n, "'n' must be positive."))
         nbath > 0 || throw(DomainError(nbath, "'nbath' must be positive."))
@@ -69,6 +69,15 @@ struct ModelParameters
         bases = [SparseIR.rescale(basis, β[i]) for i in 1:n] # TODO is it okay to do this? with this we change ωmax
 
         return new(n, nbath, ε_imp, ε, u, v, β, length(basis), bases)
+    end
+
+    function ModelParameters(
+        n::Int, nbath::Int,
+        ε_imp::Vector{Float64}, ε::Matrix{Float64},
+        u::Vector{Float64}, v::Matrix{Float64}, β::Vector{Float64},
+        basis_length::Int, bases::Vector{FiniteTempBasis}
+    )::ModelParameters
+        return new(n, nbath, ε_imp, ε, u, v, β, basis_length, bases)
     end
 end
 
@@ -243,7 +252,7 @@ end
 function save_data_to_csv(
     β::AbstractVector{Float64}, u::AbstractVector{Float64},
     τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{ComplexF64};
-    suffix::String=""
+    suffix::String="", append::Bool=false
 )
     if !(size(τ) == size(Δτ) == size(Στ))
         error("All matrices must have the same dimensions.")
@@ -265,13 +274,13 @@ function save_data_to_csv(
     data = hcat(β, u, τ, Δτ, real(Στ), imag(Στ))
     df = DataFrame(data, Symbol.(colnames))
 
-    CSV.write("$base_folder/data_$suffix.csv", df)
+    CSV.write("$base_folder/data_$suffix.csv", df; append)
 end
 
 
-function save_occupations(occupations::AbstractVector{Float64}; suffix::String="")
+function save_occupations(occupations::AbstractVector{Float64}; suffix::String="", append::Bool=false)
     df = DataFrame(occupation=occupations)
-    CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
+    CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df; append)
 
     scatter(occupations, xlabel="Observation", ylabel="<N>", title="<N> over observations", legend=false, ylim=(0, 1))
     hline!([0.5], linestyle=:dot, color=:red) # add a dotted red line at y = 0.5
@@ -280,7 +289,7 @@ function save_occupations(occupations::AbstractVector{Float64}; suffix::String="
 end
 
 
-function generate_data(model_parameters::ModelParameters; suffix="", save=false)
+function generate_data(model_parameters::ModelParameters; suffix="", save=false, append::Bool=false)
     Δl = delta_l(model_parameters)
     Δτ = hybridisation_tau(Δl, model_parameters)
 
@@ -298,11 +307,37 @@ function generate_data(model_parameters::ModelParameters; suffix="", save=false)
             τs[n, :] = SparseIR.default_tau_sampling_points(model_parameters.bases[n])
         end
 
-        save_data_to_csv(model_parameters.β, model_parameters.u, τs, Δτ, Στ; suffix)
-        save_occupations(occupations; suffix)
+        save_data_to_csv(model_parameters.β, model_parameters.u, τs, Δτ, Στ; suffix, append)
+        save_occupations(occupations; suffix, append)
     end
 end
 
+
+function chunk_model_parameters(model_parameters::ModelParameters, chunk_size::Int)::AbstractVector{ModelParameters}
+    model_parameters.n % chunk_size == 0 || throw(DomainError(model_parameters.n, "'n' is not divisable by 'chunk_size'."))
+
+    nchunks = Int(model_parameters.n / chunk_size)
+    chunks = Vector{ModelParameters}(undef, nchunks)
+
+    for i in 1:nchunks
+        start_idx = (i - 1) * chunk_size + 1
+        end_idx = i * chunk_size
+
+        chunks[i] = ModelParameters(
+            chunk_size,
+            model_parameters.nbath,
+            model_parameters.ε_imp[start_idx:end_idx],
+            model_parameters.ε[start_idx:end_idx, :],
+            model_parameters.u[start_idx:end_idx],
+            model_parameters.v[start_idx:end_idx, :],
+            model_parameters.β[start_idx:end_idx],
+            model_parameters.basis_length,
+            model_parameters.bases[start_idx:end_idx]
+        )
+    end
+
+    return chunks
+end
 
 function main()
     n = 10000
@@ -323,6 +358,9 @@ function main()
     generate_distribution_plots = true
     file_suffix = "10k"
 
+    use_chunking = true
+    chunk_size = 1000
+
     println("Generating $n samples with $nbath bath sites.")
 
     model_parameters = ModelParameters(
@@ -330,11 +368,21 @@ function main()
         ε_lower_boundary, ε_upper_boundary,
         u_lower_boundary,
         t_lower_boundary, t_upper_boundary, temperature_scale,
-        v_lower_boundary, v_higher_boundary,
-        generate_distribution_plots; file_suffix
+        v_lower_boundary, v_higher_boundary;
+        generate_distribution_plots, file_suffix
     )
 
-    time = @elapsed generate_data(model_parameters; suffix=file_suffix, save=true)
+    if use_chunking
+        chunks = chunk_model_parameters(model_parameters, chunk_size)
+        time = 0
+
+        for i in eachindex(chunks)
+            time += @elapsed generate_data(chunks[i]; suffix=file_suffix, save=true, append=i > 1)
+        end
+    else
+        time = @elapsed generate_data(model_parameters; suffix=file_suffix, save=true)
+    end
+
     println("Generating $n samples with $nbath bath sites took $(time)s.")
 end
 
