@@ -23,6 +23,7 @@ struct ModelParameters
     v::Matrix{Float64} # hopping amplitude
     β::Vector{Float64} # thermodynamic beta (1/T)
 
+    basis::FiniteTempBasis # base basis
     basis_length::Int # the length of all bases
     bases::Vector{FiniteTempBasis} # basis scaled to the individual temperature
 
@@ -32,7 +33,7 @@ struct ModelParameters
         u_lower_boundary::Number,
         t_lower_boundary::Number, t_upper_boundary::Number, temperature_scale::Number,
         v_lower_boundary::Number, v_upper_boundary::Number;
-        generate_distribution_plots::Bool=false, file_suffix::String=""
+        init_bases=true, generate_distribution_plots::Bool=false, file_suffix::String=""
     )::ModelParameters
         n > 0 || throw(DomainError(n, "'n' must be positive."))
         nbath > 0 || throw(DomainError(nbath, "'nbath' must be positive."))
@@ -66,18 +67,24 @@ struct ModelParameters
 
         # 1 / t_lower_boundary is the highest beta, whereas ε_upper_boundary is the highest energy, which defines our ωmax
         basis = SparseIR.FiniteTempBasis(Fermionic(), 1 / t_lower_boundary, ε_upper_boundary, nothing)
-        bases = [SparseIR.rescale(basis, β[i]) for i in 1:n] # TODO is it okay to do this? with this we change ωmax
 
-        return new(n, nbath, ε_imp, ε, u, v, β, length(basis), bases)
+        if init_bases
+            bases = [SparseIR.rescale(basis, β[i]) for i in 1:n] # TODO is it okay to do this? with this we change ωmax
+        else
+            bases = Vector{FiniteTempBasis}(undef, n)
+        end
+
+        return new(n, nbath, ε_imp, ε, u, v, β, basis, length(basis), bases)
     end
 
     function ModelParameters(
         n::Int, nbath::Int,
         ε_imp::Vector{Float64}, ε::Matrix{Float64},
         u::Vector{Float64}, v::Matrix{Float64}, β::Vector{Float64},
-        basis_length::Int, bases::Vector{FiniteTempBasis}
+        basis::FiniteTempBasis, basis_length::Int
     )::ModelParameters
-        return new(n, nbath, ε_imp, ε, u, v, β, basis_length, bases)
+        bases = [SparseIR.rescale(basis, β[i]) for i in 1:n]
+        return new(n, nbath, ε_imp, ε, u, v, β, basis, basis_length, bases)
     end
 end
 
@@ -313,30 +320,23 @@ function generate_data(model_parameters::ModelParameters; suffix="", save=false,
 end
 
 
-function chunk_model_parameters(model_parameters::ModelParameters, chunk_size::Int)::AbstractVector{ModelParameters}
+function get_chunk(model_parameters::ModelParameters, chunk_size::Int, index::Int)::ModelParameters
     model_parameters.n % chunk_size == 0 || throw(DomainError(model_parameters.n, "'n' is not divisable by 'chunk_size'."))
 
-    nchunks = Int(model_parameters.n / chunk_size)
-    chunks = Vector{ModelParameters}(undef, nchunks)
+    start_idx = (index - 1) * chunk_size + 1
+    end_idx = index * chunk_size
 
-    for i in 1:nchunks
-        start_idx = (i - 1) * chunk_size + 1
-        end_idx = i * chunk_size
-
-        chunks[i] = ModelParameters(
-            chunk_size,
-            model_parameters.nbath,
-            model_parameters.ε_imp[start_idx:end_idx],
-            model_parameters.ε[start_idx:end_idx, :],
-            model_parameters.u[start_idx:end_idx],
-            model_parameters.v[start_idx:end_idx, :],
-            model_parameters.β[start_idx:end_idx],
-            model_parameters.basis_length,
-            model_parameters.bases[start_idx:end_idx]
-        )
-    end
-
-    return chunks
+    return ModelParameters(
+        chunk_size,
+        model_parameters.nbath,
+        model_parameters.ε_imp[start_idx:end_idx],
+        model_parameters.ε[start_idx:end_idx, :],
+        model_parameters.u[start_idx:end_idx],
+        model_parameters.v[start_idx:end_idx, :],
+        model_parameters.β[start_idx:end_idx],
+        model_parameters.basis,
+        model_parameters.basis_length
+    )
 end
 
 function main()
@@ -369,15 +369,18 @@ function main()
         u_lower_boundary,
         t_lower_boundary, t_upper_boundary, temperature_scale,
         v_lower_boundary, v_higher_boundary;
-        generate_distribution_plots, file_suffix
+        init_bases=!use_chunking, generate_distribution_plots, file_suffix
     )
 
     if use_chunking
-        chunks = chunk_model_parameters(model_parameters, chunk_size)
+        n % chunk_size == 0 || throw(DomainError(n, "'n' is not divisable by 'chunk_size'."))
+
+        chunks = Int(n / chunk_size)
         time = 0
 
-        for i in eachindex(chunks)
-            time += @elapsed generate_data(chunks[i]; suffix=file_suffix, save=true, append=i > 1)
+        for i in 1:chunks
+            chunk = get_chunk(model_parameters, chunk_size, i)
+            time += @elapsed generate_data(chunk; suffix=file_suffix, save=true, append=i > 1)
         end
     else
         time = @elapsed generate_data(model_parameters; suffix=file_suffix, save=true)
