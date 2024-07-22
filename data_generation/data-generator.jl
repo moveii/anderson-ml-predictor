@@ -189,7 +189,7 @@ function g_freq(model_parameters::ModelParameters)::Matrix{ComplexF64}
     parameters = get_anderson_parameters(model_parameters)
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
 
-    # we calculate g_tau first, and then transform it into g_freq, because its way faster
+    # we calculate g_tau first, and then transform it into g_freq, because it's way faster
     g_tau = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
 
     @showprogress desc = "g_tau" Threads.@threads for n in 1:model_parameters.n
@@ -222,15 +222,11 @@ function get_occupations(model_parameters::ModelParameters)::AbstractVector{Floa
 end
 
 
-function sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}; suffix::String="", save_on_completion::Bool=false)::Matrix{ComplexF64}
+function sigma_tau(
+    model_parameters::ModelParameters,
+    g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}
+)::Matrix{ComplexF64}
     sigma_iv = (1 ./ g0 - 1 ./ g) .- (model_parameters.u .* occupations)
-
-    omegas = SparseIR.default_matsubara_sampling_points(model_parameters.bases[1])
-    scatter(Int.(omegas), real(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Real(Σν)", title="Σν over frequency", legend=false)
-    savefig("$base_folder/sigma_freq_real.png")
-
-    scatter(Int.(omegas), imag(sigma_iv[1, :]), xlabel="Matsubara frequency", ylabel="Im(Σν)", title="Σν over frequency", legend=false)
-    savefig("$base_folder/sigma_freq_im.png")
 
     sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
 
@@ -240,33 +236,40 @@ function sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g:
         sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
     end
 
-    taus = SparseIR.default_tau_sampling_points(model_parameters.bases[1])
-    scatter(taus, real(sigma_tau[1, :]), xlabel="Time", ylabel="Real(Στ)", title="Στ over time", legend=false)
-    savefig("$base_folder/sigma_tau_real.png")
-
-    scatter(taus, imag(sigma_tau[1, :]), xlabel="Time", ylabel="Im(Στ)", title="Στ over time", legend=false)
-    savefig("$base_folder/sigma_tau_im.png")
-
-    if save_on_completion
-        save_self_energies(sigma_tau; suffix)
-    end
-
     return sigma_tau
 end
 
 
-function save_self_energies(self_energies::Matrix{ComplexF64}; suffix::String="")
-    # Convert complex matrix to a format suitable for saving, e.g., split into real and imag parts
-    re_part = real(self_energies)
-    im_part = imag(self_energies)
-    df = DataFrame(RealPart=vec(re_part), ImagPart=vec(im_part))
-    CSV.write("$base_folder/exact_self_energies_$suffix.csv", df)
+function save_data_to_csv(
+    β::AbstractVector{Float64}, u::AbstractVector{Float64},
+    τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{ComplexF64};
+    suffix::String=""
+)
+    if !(size(τ) == size(Δτ) == size(Στ))
+        error("All matrices must have the same dimensions.")
+    end
+
+    if !(length(β) == length(u) == size(τ, 1))
+        error("All vectors must have the same length.")
+    end
+
+    ncols = size(τ, 2)
+
+    colnames_τ = ["tau_$(i)" for i in 1:ncols]
+    colnames_Δτ = ["hyb_tau_$(i)" for i in 1:ncols]
+    colnames_re_Στ = ["sigma_tau_re_$(i)" for i in 1:ncols]
+    colnames_im_Στ = ["sigma_tau_im_$(i)" for i in 1:ncols]
+
+    colnames = vcat("beta", "u", colnames_τ, colnames_Δτ, colnames_re_Στ, colnames_im_Στ)
+
+    data = hcat(β, u, τ, Δτ, real(Στ), imag(Στ))
+    df = DataFrame(data, Symbol.(colnames))
+
+    CSV.write("$base_folder/data_$suffix.csv", df)
 end
 
 
-function save_occupations(model_parameters::ModelParameters; suffix::String="")
-    occupations = get_occupations(model_parameters)
-
+function save_occupations(occupations::AbstractVector{Float64}; suffix::String="")
     df = DataFrame(occupation=occupations)
     CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df)
 
@@ -277,7 +280,7 @@ function save_occupations(model_parameters::ModelParameters; suffix::String="")
 end
 
 
-function gen(model_parameters::ModelParameters)
+function generate_data(model_parameters::ModelParameters; suffix="", save=false)
     Δl = delta_l(model_parameters)
     Δτ = hybridisation_tau(Δl, model_parameters)
 
@@ -286,12 +289,23 @@ function gen(model_parameters::ModelParameters)
 
     occupations = get_occupations(model_parameters)
 
-    sigma = sigma_tau(model_parameters, g0, g, occupations)
+    Στ = sigma_tau(model_parameters, g0, g, occupations)
+
+    if save
+        τs = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
+
+        for n in 1:model_parameters.n
+            τs[n, :] = SparseIR.default_tau_sampling_points(model_parameters.bases[n])
+        end
+
+        save_data_to_csv(model_parameters.β, model_parameters.u, τs, Δτ, Στ; suffix)
+        save_occupations(occupations; suffix)
+    end
 end
 
 
-function generate_data()
-    n = 4
+function main()
+    n = 10000
     nbath = 5
 
     ε_lower_boundary = -5.0
@@ -306,8 +320,8 @@ function generate_data()
     v_lower_boundary = -5.0
     v_higher_boundary = 5.0
 
-    generate_distribution_plots = false
-    file_suffix = "1k"
+    generate_distribution_plots = true
+    file_suffix = "10k"
 
     println("Generating $n samples with $nbath bath sites.")
 
@@ -320,13 +334,10 @@ function generate_data()
         generate_distribution_plots; file_suffix
     )
 
-    println("starting")
-    time = @elapsed gen(model_parameters)
-    println(time)
-
-    # save_occupations(model_parameters; suffix=file_suffix)
+    time = @elapsed generate_data(model_parameters; suffix=file_suffix, save=true)
+    println("Generating $n samples with $nbath bath sites took $(time)s.")
 end
 
 Random.seed!(1) # for comparability
 println("Available number of threads: ", Threads.nthreads())
-generate_data()
+main()
