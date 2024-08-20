@@ -241,7 +241,7 @@ end
 function sigma_tau(
     model_parameters::ModelParameters,
     g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}
-)::Matrix{ComplexF64}
+)::Matrix{Float64}
     sigma_iv = (1 ./ g0 - 1 ./ g) .- (model_parameters.u .* occupations)
 
     sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
@@ -252,13 +252,13 @@ function sigma_tau(
         sigma_tau[n, :] = SparseIR.evaluate(SparseIR.TauSampling(basis), gl)
     end
 
-    return sigma_tau
+    return real(sigma_tau)
 end
 
 
 function save_data_to_csv(
     β::AbstractVector{Float64}, u::AbstractVector{Float64},
-    τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{ComplexF64};
+    τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{Float64};
     suffix::String="", append::Bool=false
 )
     if !(size(τ) == size(Δτ) == size(Στ))
@@ -273,12 +273,11 @@ function save_data_to_csv(
 
     colnames_τ = ["tau_$(i)" for i in 1:ncols]
     colnames_Δτ = ["hyb_tau_$(i)" for i in 1:ncols]
-    colnames_re_Στ = ["sigma_tau_re_$(i)" for i in 1:ncols]
-    colnames_im_Στ = ["sigma_tau_im_$(i)" for i in 1:ncols]
+    colnames_Στ = ["sigma_tau_$(i)" for i in 1:ncols]
 
-    colnames = vcat("beta", "u", colnames_τ, colnames_Δτ, colnames_re_Στ, colnames_im_Στ)
+    colnames = vcat("beta", "u", colnames_τ, colnames_Δτ, colnames_Στ)
 
-    data = hcat(β, u, τ, Δτ, real(Στ), imag(Στ))
+    data = hcat(β, u, τ, Δτ, Στ)
     df = DataFrame(data, Symbol.(colnames))
 
     CSV.write("$base_folder/data_$suffix.csv", df; append)
