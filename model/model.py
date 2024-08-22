@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 
-# note that torchtune requires setuptools' version to be < 70
-from torchtune.modules import RotaryPositionalEmbeddings
-
 from dataclasses import dataclass
 
 
@@ -105,26 +102,3 @@ class LearnablePositionalEncoding(nn.Module):
     def forward(self, x):
         _, T, _ = x.shape
         return x + self.positional_encoding[:, :T, :]
-
-
-# i want to try this out later, but proper rope is applied to q and k and not tgt or src
-# thus i need to implement the transformer by myself
-# stay simple first, then improve
-class TransformerEncoderLayerWithRoPE(nn.TransformerEncoderLayer):
-    def __init__(self, *args, rotary_pos_emb=None, **kwargs):
-        super(TransformerEncoderLayerWithRoPE, self).__init__(*args, **kwargs)
-        self.rotary_pos_emb = rotary_pos_emb
-
-    def forward(self, src, *args, **kwargs):
-        src = self.rotary_pos_emb(src)
-        return super(TransformerEncoderLayerWithRoPE, self).forward(src, *args, **kwargs)
-
-
-class TransformerDecoderLayerWithRoPE(nn.TransformerDecoderLayer):
-    def __init__(self, *args, rotary_pos_emb=None, **kwargs):
-        super(TransformerDecoderLayerWithRoPE, self).__init__(*args, **kwargs)
-        self.rotary_pos_emb = rotary_pos_emb
-
-    def forward(self, tgt, memory, *args, **kwargs):
-        tgt = self.rotary_pos_emb(tgt)
-        return super(TransformerDecoderLayerWithRoPE, self).forward(tgt, memory, *args, **kwargs)
