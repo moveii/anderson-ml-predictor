@@ -6,17 +6,21 @@ from typing import Optional, Literal
 
 @dataclass
 class ModelConfig:
-    max_sequence_length: int
     d_model: int
     output_dim: int
+
+    encoder_max_seq_length: int
     encoder_input_dim: int
     encoder_dim_feedforward: int
     encoder_nhead: int
     encoder_num_layers: int
+
+    decoder_max_seq_length: int
     decoder_input_dim: int
     decoder_dim_feedforward: int
     decoder_nhead: int
     decoder_num_layers: int
+
     dropout: float
     activation: Literal["relu", "gelu"]
     bias: bool
@@ -39,7 +43,11 @@ class AutoregressiveTransformer(nn.Module):
         self.encoder_input_projection = nn.Linear(config.encoder_input_dim, config.d_model)
         self.decoder_input_projection = nn.Linear(config.decoder_input_dim, config.d_model)
 
-        self.positional_encoding = LearnablePositionalEncoding(config.max_sequence_length, config.d_model)
+        self.encoder_positional_encoding = LearnablePositionalEncoding(config.encoder_max_seq_length, config.d_model)
+        self.decoder_positional_encoding = LearnablePositionalEncoding(config.decoder_max_seq_length, config.d_model)
+
+        self.encoder_norm = nn.LayerNorm(config.d_model)
+        self.decoder_norm = nn.LayerNorm(config.d_model)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.d_model,
@@ -96,21 +104,33 @@ class AutoregressiveTransformer(nn.Module):
     def encode(self, encoder_input: torch.Tensor) -> torch.Tensor:
         """Encode the input."""
         x = self.encoder_input_projection(encoder_input)
-        x = self.positional_encoding(x)
-        return self.transformer_encoder(x)
+        x = self.encoder_positional_encoding(x)
+
+        # residual connection around the encoder
+        residual = x
+        x = self.transformer_encoder(x)
+        x = x + residual
+        x = self.encoder_norm(x)
+
+        return x
 
     def decode(self, decoder_input: torch.Tensor, encoder_output: torch.Tensor) -> torch.Tensor:
         """Decode the input."""
         x = self.decoder_input_projection(decoder_input)
-        x = self.positional_encoding(x)
+        x = self.decoder_positional_encoding(x)
 
         _, T, _ = x.shape
 
         if T not in self.att_mask:
             self.att_mask[T] = self.generate_causal_mask(T)
 
-        output = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[T])
-        return self.output_layer(output)
+        # residual connection around the decoder
+        residual = x
+        x = self.transformer_decoder(x, encoder_output, tgt_mask=self.att_mask[T])
+        x = x + residual
+        x = self.decoder_norm(x)
+
+        return self.output_layer(x)
 
     def generate_causal_mask(self, seq_len: int) -> torch.Tensor:
         """Generate a causal mask for the decoder."""
