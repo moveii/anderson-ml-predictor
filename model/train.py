@@ -2,12 +2,13 @@ import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset, Dataset
+from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 from model import AutoregressiveTransformer, ModelConfig
 from dataset import ImpurityDataset
