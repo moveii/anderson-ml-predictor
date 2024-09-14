@@ -339,9 +339,10 @@ function get_chunk(model_parameters::ModelParameters, chunk_size::Int, index::In
 end
 
 function main()
-    n = 10000
+    n = 10000 # number of observations to generate
     nbath = 5
 
+    # settings for the sample distributions
     ε_lower_boundary = -5.0
     ε_upper_boundary = 5.0
 
@@ -354,9 +355,11 @@ function main()
     v_lower_boundary = -5.0
     v_higher_boundary = 5.0
 
+    # wheter plots should be generated, and how the csv files should be saved
     generate_distribution_plots = true
     file_suffix = "10k"
 
+    # use chunking for a larger number of observations to preserve memory
     use_chunking = true
     chunk_size = 1000
 
