@@ -150,7 +150,7 @@ function get_anderson_parameters(model_parameters::ModelParameters)
 end
 
 
-function delta_l(parameters::ModelParameters)::Matrix{Float64}
+function hybridisation_tau(parameters::ModelParameters)::Matrix{Float64}
     Δl = zeros(Float64, (parameters.n, parameters.basis_length))
 
     @showprogress desc = "Δl" Threads.@threads for n in 1:parameters.n
@@ -161,11 +161,6 @@ function delta_l(parameters::ModelParameters)::Matrix{Float64}
         end
     end
 
-    return Δl
-end
-
-
-function hybridisation_tau(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{Float64}
     Δτ = zeros(Float64, (parameters.n, parameters.basis_length))
 
     @showprogress desc = "Δτ" Threads.@threads for n in 1:parameters.n
@@ -176,28 +171,32 @@ function hybridisation_tau(Δl::Matrix{Float64}, parameters::ModelParameters)::M
 end
 
 
-function g0_freq(Δl::Matrix{Float64}, parameters::ModelParameters)::Matrix{ComplexF64}
-    Δν = zeros(ComplexF64, (parameters.n, parameters.basis_length))
+function g0_tau(model_parameters::ModelParameters; negative::Bool=false)::Matrix{Float64}
+    parameters = get_anderson_parameters(model_parameters)
+    core = AndersonCore(AndersonModel.nbath(parameters[1]))
 
-    Threads.@threads for n in 1:parameters.n
-        Δν[n, :] = evaluate(SparseIR.MatsubaraSampling(parameters.bases[n]), -Δl[n, :])
+    factor = negative ? -1 : 1
+
+    g0_tau = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
+
+    @showprogress desc = "g0_tau" Threads.@threads for n in 1:model_parameters.n
+        g0_tau[n, :] = AndersonModel.g0_tau((1, 1), SparseIR.default_tau_sampling_points(model_parameters.bases[n]) * factor, core, parameters[n])
     end
 
-    # TODO somewhere is a minus missing... the manual approach is * (-1) this one without the minus
-    # the manual approach and the propagator are equal, thus it should be an error here somewhere
+    return g0_tau
+end
 
-    g0 = zeros(ComplexF64, (parameters.n, parameters.basis_length))
 
-    @showprogress desc = "g0" Threads.@threads for n in 1:parameters.n
-        basis = parameters.bases[n]
-        omegas = SparseIR.default_matsubara_sampling_points(basis)
+function g0_freq(g0_tau::Matrix{Float64}, model_parameters::ModelParameters)::Matrix{ComplexF64}
+    g0_freq = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
 
-        for l in 1:length(basis)
-            g0[n, l] = 1 / (SparseIR.valueim(omegas[l], parameters.β[n]) - Δν[n, l])
-        end
+    @showprogress desc = "g0_freq" Threads.@threads for n in 1:model_parameters.n
+        basis = model_parameters.bases[n]
+        gl = SparseIR.fit(SparseIR.TauSampling(basis), g0_tau[n, :])
+        g0_freq[n, :] = SparseIR.evaluate(SparseIR.MatsubaraSampling(basis), gl)
     end
 
-    return g0
+    return g0_freq
 end
 
 
@@ -295,11 +294,13 @@ function save_occupations(occupations::AbstractVector{Float64}; suffix::String="
 end
 
 
-function generate_data(model_parameters::ModelParameters; suffix="", save=false, append::Bool=false)
-    Δl = delta_l(model_parameters)
-    Δτ = hybridisation_tau(Δl, model_parameters)
+function generate_data(model_parameters::ModelParameters; suffix="", save::Bool=false, append::Bool=false)
+    Δτ = hybridisation_tau(model_parameters)
 
-    g0 = g0_freq(Δl, model_parameters)
+    g0_τ = g0_tau(model_parameters)
+    g0_τ_neg = g0_tau(model_parameters; negative=true)
+
+    g0 = g0_freq(g0_τ, model_parameters)
     g = g_freq(model_parameters)
 
     occupations = get_occupations(model_parameters)
