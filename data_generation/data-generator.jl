@@ -239,9 +239,9 @@ end
 
 function sigma_tau(
     model_parameters::ModelParameters,
-    g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, occupations::AbstractVector{Float64}
+    g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, hf::AbstractVector{Float64}
 )::Matrix{Float64}
-    sigma_iv = (1 ./ g0 - 1 ./ g) .- (model_parameters.u .* occupations)
+    sigma_iv = (1 ./ g0 - 1 ./ g) .- hf
 
     sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
 
@@ -256,27 +256,32 @@ end
 
 
 function save_data_to_csv(
-    β::AbstractVector{Float64}, u::AbstractVector{Float64},
-    τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{Float64};
+    model_parameters::ModelParameters, occupations::AbstractVector{Float64},
+    τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{Float64},
+    hf::AbstractVector{Float64}, so::Matrix{Float64};
     suffix::String="", append::Bool=false
 )
     if !(size(τ) == size(Δτ) == size(Στ))
         error("All matrices must have the same dimensions.")
     end
 
-    if !(length(β) == length(u) == size(τ, 1))
+    if !(length(model_parameters.β) == length(model_parameters.u) == size(τ, 1))
         error("All vectors must have the same length.")
     end
 
     ncols = size(τ, 2)
 
+    colnames_ε = ["e_$(i)" for i in 1:model_parameters.nbath]
+    colnames_v = ["v_$(i)" for i in 1:model_parameters.nbath]
+
     colnames_τ = ["tau_$(i)" for i in 1:ncols]
     colnames_Δτ = ["hyb_tau_$(i)" for i in 1:ncols]
+    colnames_so = ["so_$(i)" for i in 1:ncols]
     colnames_Στ = ["sigma_tau_$(i)" for i in 1:ncols]
 
-    colnames = vcat("beta", "u", colnames_τ, colnames_Δτ, colnames_Στ)
+    colnames = vcat("beta", "u", "occupation", colnames_ε, colnames_v, colnames_τ, colnames_Δτ, "hf", colnames_so, colnames_Στ)
 
-    data = hcat(β, u, τ, Δτ, Στ)
+    data = hcat(model_parameters.β, model_parameters.u, occupations, model_parameters.ε, model_parameters.v, τ, Δτ, hf, so, Στ)
     df = DataFrame(data, Symbol.(colnames))
 
     CSV.write("$base_folder/data_$suffix.csv", df; append)
@@ -305,18 +310,21 @@ function generate_data(model_parameters::ModelParameters; suffix="", save::Bool=
 
     occupations = get_occupations(model_parameters)
 
-    Στ = sigma_tau(model_parameters, g0, g, occupations)
+    hf = model_parameters.u .* occupations
+    so = model_parameters.u .* model_parameters.u .* g0_τ .* g0_τ .* g0_τ_neg
 
-    if save
-        τs = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
+    Στ = sigma_tau(model_parameters, g0, g, hf)
 
-        for n in 1:model_parameters.n
-            τs[n, :] = SparseIR.default_tau_sampling_points(model_parameters.bases[n])
-        end
+    save || return
 
-        save_data_to_csv(model_parameters.β, model_parameters.u, τs, Δτ, Στ; suffix, append)
-        save_occupations(occupations; suffix, append)
+    τs = zeros(Float64, (model_parameters.n, model_parameters.basis_length))
+
+    for n in 1:model_parameters.n
+        τs[n, :] = SparseIR.default_tau_sampling_points(model_parameters.bases[n])
     end
+
+    save_data_to_csv(model_parameters, occupations, τs, Δτ, Στ, hf, so; suffix, append)
+    save_occupations(occupations; suffix, append)
 end
 
 
