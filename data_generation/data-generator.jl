@@ -1,3 +1,5 @@
+# Patrick Berger, 2024
+
 using SparseIR
 using Random, Distributions
 using Trapz
@@ -12,6 +14,23 @@ using .AndersonModel
 
 base_folder = "data"
 
+"""
+ModelParameters
+
+A struct representing the parameters for the Anderson impurity model.
+
+Fields:
+- n::Int: Number of observations
+- nbath::Int: Number of bath sites
+- ε_imp::Vector{Float64}: Impurity-site energy levels
+- ε::Matrix{Float64}: Bath-site energy levels
+- u::Vector{Float64}: Coulomb interaction strengths
+- v::Matrix{Float64}: Hopping amplitudes
+- β::Vector{Float64}: Thermodynamic beta (1/T)
+- basis::FiniteTempBasis: Base basis for calculations
+- basis_length::Int: Length of all bases
+- bases::Vector{FiniteTempBasis}: Bases scaled to individual temperatures
+"""
 struct ModelParameters
     n::Int # number of observations
     nbath::Int # number of bath sites
@@ -89,11 +108,25 @@ struct ModelParameters
 end
 
 
+"""
+uniform_distribution(lower_boundary::Number, upper_boundary::Number, n::Int)
+
+Generate n samples from a uniform distribution between lower_boundary and upper_boundary.
+
+Returns a vector of n randomly generated numbers.
+"""
 function uniform_distribution(lower_boundary::Number, upper_boundary::Number, n::Int)
     return rand(Uniform(lower_boundary, upper_boundary), n)
 end
 
 
+"""
+exponential_distribution(scale::Number, boundary::Number, n::Int)
+
+Generate n samples from an exponential distribution with given scale, bounded by 'boundary'.
+
+Returns a vector of n randomly generated numbers.
+"""
 function exponential_distribution(scale::Number, boundary::Number, n::Int)
     scale > 0 || throw(DomainError(scale, "The scale must be positive."))
     boundary > 0 || throw(DomainError(boundary, "The boundary must be positive."))
@@ -112,6 +145,12 @@ function exponential_distribution(scale::Number, boundary::Number, n::Int)
 end
 
 
+"""
+save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64}, suffix::String)
+
+Generate and save histogram plots for the distributions of energies, hopping amplitudes, β (inverse temperature), and Coulomb interaction strengths.
+Also saves the data to CSV files.
+"""
 function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::Vector{Float64}, β::Vector{Float64}, u::Vector{Float64}, suffix::String)
     base = "$base_folder/distributions"
 
@@ -137,7 +176,13 @@ function save_distribution_plots(energies::Vector{Float64}, hopping_amplitudes::
 end
 
 
-# this function returns the paramaters defined in 'ModelParameters' wrapped as 'AndersonParameters', where each instance is its own model
+"""
+get_anderson_parameters(model_parameters::ModelParameters)
+
+Convert ModelParameters to a vector of AndersonParameters, where each instance represents its own model.
+
+Returns a vector of AndersonParameters.
+"""
 function get_anderson_parameters(model_parameters::ModelParameters)
     n = model_parameters.n
     u = model_parameters.u
@@ -150,6 +195,13 @@ function get_anderson_parameters(model_parameters::ModelParameters)
 end
 
 
+"""
+hybridisation_tau(parameters::ModelParameters)::Matrix{Float64}
+
+Calculate the hybridization function in imaginary time (τ) representation.
+
+Returns a matrix where each row corresponds to an observation and each column to a τ point.
+"""
 function hybridisation_tau(parameters::ModelParameters)::Matrix{Float64}
     Δl = zeros(Float64, (parameters.n, parameters.basis_length))
 
@@ -171,6 +223,13 @@ function hybridisation_tau(parameters::ModelParameters)::Matrix{Float64}
 end
 
 
+"""
+g0_tau(model_parameters::ModelParameters; negative::Bool=false)::Matrix{Float64}
+
+Calculate the non-interacting Green's function in imaginary time (τ) representation.
+
+Returns a matrix where each row corresponds to an observation and each column to a τ point.
+"""
 function g0_tau(model_parameters::ModelParameters; negative::Bool=false)::Matrix{Float64}
     parameters = get_anderson_parameters(model_parameters)
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
@@ -187,6 +246,13 @@ function g0_tau(model_parameters::ModelParameters; negative::Bool=false)::Matrix
 end
 
 
+"""
+g0_freq(g0_tau::Matrix{Float64}, model_parameters::ModelParameters)::Matrix{ComplexF64}
+
+Transform the non-interacting Green's function from τ to frequency representation.
+
+Returns a matrix where each row corresponds to an observation and each column to a frequency point.
+"""
 function g0_freq(g0_tau::Matrix{Float64}, model_parameters::ModelParameters)::Matrix{ComplexF64}
     g0_freq = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
 
@@ -200,6 +266,13 @@ function g0_freq(g0_tau::Matrix{Float64}, model_parameters::ModelParameters)::Ma
 end
 
 
+"""
+g_freq(model_parameters::ModelParameters)::Matrix{ComplexF64}
+
+Calculate the interacting Green's function in frequency representation.
+
+Returns a matrix where each row corresponds to an observation and each column to a frequency point.
+"""
 function g_freq(model_parameters::ModelParameters)::Matrix{ComplexF64}
     parameters = get_anderson_parameters(model_parameters)
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
@@ -223,6 +296,13 @@ function g_freq(model_parameters::ModelParameters)::Matrix{ComplexF64}
 end
 
 
+"""
+get_occupations(model_parameters::ModelParameters)::AbstractVector{Float64}
+
+Calculate the occupations for each observation in the model.
+
+Returns a vector of occupation numbers.
+"""
 function get_occupations(model_parameters::ModelParameters)::AbstractVector{Float64}
     parameters = get_anderson_parameters(model_parameters)
     core = AndersonCore(AndersonModel.nbath(parameters[1]))
@@ -237,10 +317,18 @@ function get_occupations(model_parameters::ModelParameters)::AbstractVector{Floa
 end
 
 
+"""
+sigma_tau(model_parameters::ModelParameters, g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, hf::AbstractVector{Float64})::Matrix{Float64}
+
+Calculate the self-energy in imaginary time (τ) representation.
+
+Returns a matrix where each row corresponds to an observation and each column to a τ point.
+"""
 function sigma_tau(
     model_parameters::ModelParameters,
     g0::Matrix{ComplexF64}, g::Matrix{ComplexF64}, hf::AbstractVector{Float64}
 )::Matrix{Float64}
+    # we have to subtract the Hartree-Fock term from Σ(τ), otherwise it doesn't transform like a Green's function with SparseIR
     sigma_iv = (1 ./ g0 - 1 ./ g) .- hf
 
     sigma_tau = zeros(ComplexF64, (model_parameters.n, model_parameters.basis_length))
@@ -255,6 +343,11 @@ function sigma_tau(
 end
 
 
+"""
+save_data_to_csv(model_parameters::ModelParameters, occupations::AbstractVector{Float64}, τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{Float64}, hf::AbstractVector{Float64}, so::Matrix{Float64}; suffix::String="", append::Bool=false)
+
+Save all calculated data to a CSV file.
+"""
 function save_data_to_csv(
     model_parameters::ModelParameters, occupations::AbstractVector{Float64},
     τ::Matrix{Float64}, Δτ::Matrix{Float64}, Στ::Matrix{Float64},
@@ -288,6 +381,11 @@ function save_data_to_csv(
 end
 
 
+"""
+save_occupations(occupations::AbstractVector{Float64}; suffix::String="", append::Bool=false)
+
+Save the calculated occupations to a CSV file and generate a scatter plot.
+"""
 function save_occupations(occupations::AbstractVector{Float64}; suffix::String="", append::Bool=false)
     df = DataFrame(occupation=occupations)
     CSV.write("$base_folder/number/expected_number_operator_data_$suffix.csv", df; append)
@@ -299,6 +397,12 @@ function save_occupations(occupations::AbstractVector{Float64}; suffix::String="
 end
 
 
+"""
+generate_data(model_parameters::ModelParameters; suffix="", save::Bool=false, append::Bool=false)
+
+Generate all data for the Anderson impurity model simulation.
+This includes calculating various functions (hybridization, Green's functions, self-energy) and optionally saving the results.
+"""
 function generate_data(model_parameters::ModelParameters; suffix="", save::Bool=false, append::Bool=false)
     Δτ = hybridisation_tau(model_parameters)
 
@@ -328,6 +432,13 @@ function generate_data(model_parameters::ModelParameters; suffix="", save::Bool=
 end
 
 
+"""
+get_chunk(model_parameters::ModelParameters, chunk_size::Int, index::Int)::ModelParameters
+
+Extract a chunk of the model parameters for processing in smaller batches, reducing memory needs.
+
+Returns a new ModelParameters object containing a subset of the original data.
+"""
 function get_chunk(model_parameters::ModelParameters, chunk_size::Int, index::Int)::ModelParameters
     model_parameters.n % chunk_size == 0 || throw(DomainError(model_parameters.n, "'n' is not divisable by 'chunk_size'."))
 
@@ -347,8 +458,15 @@ function get_chunk(model_parameters::ModelParameters, chunk_size::Int, index::In
     )
 end
 
+
+"""
+main()
+
+The main function that sets up and runs the Anderson impurity model simulation.
+It generates samples, calculates various quantities, and optionally saves the results.
+"""
 function main()
-    n = 10000 # number of observations to generate
+    n = 50000 # number of observations to generate
     nbath = 5
 
     # settings for the sample distributions
@@ -366,7 +484,7 @@ function main()
 
     # wheter plots should be generated, and how the csv files should be saved
     generate_distribution_plots = true
-    file_suffix = "10k"
+    file_suffix = "50k"
 
     # use chunking for a larger number of observations to preserve memory
     use_chunking = true
