@@ -1,4 +1,4 @@
-# 2023-2024 Benjamin Czasch, Patrick Berger
+# Benjamin Czasch, Patrick Berger, 2023-2024
 
 module AndersonModel
 
