@@ -406,6 +406,8 @@ This includes calculating various functions (hybridization, Green's functions, s
 function generate_data(model_parameters::ModelParameters; suffix="", save::Bool=false, append::Bool=false)
     Δτ = hybridisation_tau(model_parameters)
 
+    # the performance of this calculation can be improved by using the sparse-ir library
+    # but this way does not take too long either
     g0_τ = g0_tau(model_parameters)
     g0_τ_neg = g0_tau(model_parameters; negative=true)
 
