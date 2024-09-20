@@ -1,5 +1,6 @@
 # Patrick Berger, 2024
 
+import os
 import random
 import numpy as np
 import pandas as pd
@@ -19,27 +20,30 @@ from columns import encoder_input, labels
 # Overall configuration
 CONFIG: Dict[str, Union[int, float, str, bool]] = {
     "seed": 42,
-    "file_path": "data/data_50k.csv",
+    "dataset_path": "data/data_50k.csv",
+    "model_checkpoint": "model/model-2024-09-20.pth",
+    "pretrained_model": None,  # Set this to the path of a pretrained model to load, or None for a fresh start
     "batch_size": 32,
     "validation_size": 0.1,
+    "test_size": 0.1,
     "use_scaling": True,
-    "pair_up_columns": True,
-    "num_epochs": 150,
+    "pair_up_labels": False,  # whether to pair up the labels, so t(i) and t(max-i) are predicted at the same time
+    "num_epochs": 1,
     "learning_rate": 1e-4,
-    "scheduler_gamma": 0.98,
+    "scheduler_gamma": 0.99,
 }
 
 # Model configuration
 MODEL_CONFIG = ModelConfig(
-    output_dim=2 if CONFIG["pair_up_columns"] else 1,
+    output_dim=2 if CONFIG["pair_up_labels"] else 1,
     d_model=256,
     encoder_max_seq_length=len(encoder_input),
     encoder_input_dim=1,
     encoder_dim_feedforward=256 * 4,
     encoder_nhead=4,
     encoder_num_layers=4,
-    decoder_max_seq_length=len(labels) // (2 if CONFIG["pair_up_columns"] else 1),
-    decoder_input_dim=2 if CONFIG["pair_up_columns"] else 1,
+    decoder_max_seq_length=len(labels) // (2 if CONFIG["pair_up_labels"] else 1),
+    decoder_input_dim=2 if CONFIG["pair_up_labels"] else 1,
     decoder_dim_feedforward=256 * 4,
     decoder_nhead=4,
     decoder_num_layers=4,
@@ -69,20 +73,23 @@ class MAPELoss(nn.Module):
             torch.Tensor: Computed MAPE loss
         """
         B, T, C = outputs.shape
-        outputs_reshaped = outputs.view(B, T * C)
-        targets_reshaped = targets.view(B, T * C)
+        device = outputs.device
 
-        scale = torch.tensor(self.scaler.scale_).to(outputs.device)
-        mean = torch.tensor(self.scaler.mean_).to(outputs.device)
+        outputs = outputs.view(B, T * C)
+        targets = targets.view(B, T * C)
 
-        outputs_unscaled = outputs_reshaped * scale + mean
-        targets_unscaled = targets_reshaped * scale + mean
+        if self.scaler != None:
+            scale = torch.tensor(self.scaler.scale_).to(device)
+            mean = torch.tensor(self.scaler.mean_).to(device)
 
-        outputs_unscaled = outputs_unscaled.view(B, T, C)
-        targets_unscaled = targets_unscaled.view(B, T, C)
+            outputs = outputs * scale + mean
+            targets = targets * scale + mean
 
-        diff = torch.abs(targets_unscaled - outputs_unscaled)
-        norm = torch.norm(targets_unscaled, p=2, dim=1, keepdim=True)
+            outputs = outputs.view(B, T, C)
+            targets = targets.view(B, T, C)
+
+        diff = torch.abs(targets - outputs)
+        norm = torch.norm(targets, p=2, dim=1, keepdim=True)
         ape = diff / (norm + self.epsilon)
 
         return torch.mean(ape) * 100
@@ -105,9 +112,9 @@ def get_device() -> torch.device:
     return device
 
 
-def load_data(file_path: str, encoder_input: List[str], labels: List[str]) -> pd.DataFrame:
+def load_data(dataset_path: str, encoder_input: List[str], labels: List[str]) -> pd.DataFrame:
     """Load and preprocess the data from a CSV file."""
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(dataset_path)
     return df[encoder_input + labels]
 
 
@@ -117,15 +124,20 @@ def create_datasets(df: pd.DataFrame, config: Dict[str, Union[int, float, str, b
         df,
         encoder_input,
         labels,
-        config["pair_up_columns"],
+        config["pair_up_labels"],
         config["use_scaling"],
-        config["validation_size"],
+        config["validation_size"] + config["test_size"],
         device=get_device(),
         seed=config["seed"],
     )
 
+    other_size = config["validation_size"] + config["test_size"]
+
     indices = list(range(len(dataset)))
-    train_indices, val_indices = train_test_split(indices, test_size=config["validation_size"], random_state=config["seed"])
+    train_indices, other_indices = train_test_split(indices, test_size=other_size, random_state=config["seed"])
+
+    val_size = config["validation_size"] / other_size
+    val_indices, _ = train_test_split(other_indices, test_size=(1 - val_size), random_state=config["seed"])
 
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)
@@ -136,13 +148,20 @@ def create_datasets(df: pd.DataFrame, config: Dict[str, Union[int, float, str, b
 def create_dataloaders(train_dataset: Subset, val_dataset: Subset, batch_size: int) -> Tuple[DataLoader, DataLoader]:
     """Create DataLoader objects for training and validation sets."""
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     return train_loader, val_loader
 
 
-def create_model(config: ModelConfig, device: torch.device) -> AutoregressiveTransformer:
-    """Create and initialize the model."""
+def create_model(config: ModelConfig, device: torch.device, pretrained_path: str = None) -> AutoregressiveTransformer:
+    """Create and initialize the model, optionally loading from a pretrained file."""
     model = AutoregressiveTransformer(config, device).to(device)
+
+    if pretrained_path and os.path.isfile(pretrained_path):
+        print(f"Loading pretrained model from {pretrained_path}")
+        model.load_state_dict(torch.load(pretrained_path, map_location=device))
+    else:
+        print("Initializing fresh model")
+
     print(f"Model has {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M parameters")
     return model
 
@@ -156,9 +175,7 @@ def create_optimizer_and_scheduler(
     return optimizer, scheduler
 
 
-def train_epoch(
-    model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer, criterion: nn.Module, device: torch.device
-) -> float:
+def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer, criterion: nn.Module) -> float:
     """Train the model for one epoch."""
     model.train()
     total_loss = 0
@@ -178,96 +195,21 @@ def train_epoch(
     return total_loss / len(train_loader)
 
 
-def validate(model: nn.Module, loader: DataLoader, criterion: nn.Module, device: torch.device) -> float:
+def validate(model: nn.Module, loader: DataLoader, criterion: nn.Module) -> float:
     """Validate the model."""
     model.eval()
     total_loss = 0
 
     with torch.no_grad():
+
         for encoder_input, decoder_input, targets in loader:
+
             outputs = model(encoder_input, decoder_input)
             loss = criterion(outputs, targets)
+
             total_loss += loss.item()
 
     return total_loss / len(loader)
-
-
-def reverse_transform_output(data: torch.Tensor, scaler: StandardScaler) -> torch.Tensor:
-    """Reverse the scaling transformation on the output data."""
-    B, T, C = data.shape
-    data = data.view(B, T * C)
-    data = data.cpu().numpy()
-    return torch.tensor(scaler.inverse_transform(data)).view(B, T, C)
-
-
-def validate_mape(
-    model: nn.Module, loader: DataLoader, label_scaler: StandardScaler, use_scaling: bool = True, epsilon: float = 1e-8
-) -> float:
-    """Validate the model using Mean Absolute Percentage Error (MAPE)."""
-    model.eval()
-    total_loss = 0
-
-    with torch.no_grad():
-        for encoder_input, decoder_input, targets in loader:
-            outputs = model(encoder_input, decoder_input)
-
-            if use_scaling:
-                outputs = reverse_transform_output(outputs, label_scaler)
-                targets = reverse_transform_output(targets, label_scaler)
-
-            ape = torch.abs(targets - outputs) / (torch.norm(targets, p=2, dim=1, keepdim=True) + epsilon)
-            mape = torch.mean(ape) * 100
-            total_loss += mape.item()
-
-    return total_loss / len(loader)
-
-
-def sample(
-    model: nn.Module, encoder_input: torch.Tensor, max_length: int, device: torch.device, start_token: List[float] = [0, 0]
-) -> torch.Tensor:
-    """Generate a sample output sequence using the trained model."""
-    model.eval()
-    encoder_input = encoder_input.to(device)
-
-    with torch.no_grad():
-        encoder_output = model.encode(encoder_input)
-
-        start_token_tensor = torch.tensor([start_token], dtype=torch.float).to(device)
-        decoder_input = start_token_tensor.expand(encoder_input.size(0), 1, -1)
-
-        for _ in range(max_length):
-            output = model.decode(decoder_input, encoder_output)
-            next_token = output[:, -1:, :]
-            decoder_input = torch.cat((decoder_input, next_token), dim=1)
-
-    return decoder_input[:, 1:, :]
-
-
-def validate_autoregressive_mape(
-    model: nn.Module,
-    val_loader: DataLoader,
-    device: torch.device,
-    label_scaler: StandardScaler,
-    use_scaling: bool = True,
-    epsilon: float = 1e-8,
-) -> Tuple[float, List[float]]:
-    """Validate the model using autoregressive prediction and MAPE."""
-    model.eval()
-    losses = []
-
-    with torch.no_grad():
-        for encoder_input, _, targets in val_loader:
-            outputs = sample(model, encoder_input, len(labels) // (2 if CONFIG["pair_up_columns"] else 1), device)
-
-            if use_scaling:
-                outputs = reverse_transform_output(outputs, label_scaler)
-                targets = reverse_transform_output(targets, label_scaler)
-
-            ape = torch.abs(targets - outputs) / (torch.norm(targets, p=2, dim=1, keepdim=True) + epsilon)
-            mape = torch.mean(ape) * 100
-            losses.append(mape.item())
-
-    return np.average(losses), losses
 
 
 def train_model(
@@ -282,40 +224,48 @@ def train_model(
 ) -> Tuple[List[float], List[float], List[float], List[float]]:
     """Train the model and return training history."""
     train_losses, val_losses = [], []
-    train_mapes, val_mapes = [], []
-    best_val_loss = float("inf")
+
+    lowest_train_loss = float("inf")
+    lowest_val_loss = float("inf")
+
+    best_train_epoch = -1
+    best_val_epoch = -1
 
     for epoch in range(config["num_epochs"]):
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, get_device())
-        val_loss = validate(model, val_loader, criterion, get_device())
+        train_epoch(model, train_loader, optimizer, criterion)
 
-        train_mape = validate_mape(model, train_loader, label_scaler)
-        val_mape = validate_mape(model, val_loader, label_scaler)
+        train_loss = validate(model, train_loader, criterion)
+        val_loss = validate(model, val_loader, criterion)
 
         scheduler.step()
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
-        train_mapes.append(train_mape)
-        val_mapes.append(val_mape)
 
         print(
             f"Epoch {epoch+1}/{config['num_epochs']}, "
-            f"Train Loss: {train_loss:.4f}, Train MAPE: {train_mape:.2f}%, "
-            f"Val Loss: {val_loss:.4f}, Val MAPE: {val_mape:.2f}%, "
+            f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
             f"LR: {scheduler.get_last_lr()[0]:.2e}"
         )
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save(model.state_dict(), "best_model.pth")
+        if train_loss < lowest_train_loss:
+            lowest_train_loss = train_loss
+            best_train_epoch = epoch + 1
 
-    return train_losses, val_losses, train_mapes, val_mapes
+        if val_loss < lowest_val_loss:
+            lowest_val_loss = val_loss
+            best_val_epoch = epoch + 1
+            torch.save(model.state_dict(), config["model_checkpoint"])
+
+    print(f"Lowest Train Loss of {lowest_train_loss:.6f} at Epoch {best_train_epoch}")
+    print(f"Lowest Val Loss of {lowest_val_loss:.6f} at Epoch {best_val_epoch}")
+
+    return train_losses, val_losses
 
 
-def plot_losses(train_losses: List[float], val_losses: List[float], train_mapes: List[float], val_mapes: List[float]) -> None:
+def plot_losses(train_losses: List[float], val_losses: List[float]) -> None:
     """Plot and save training and validation loss curves."""
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 15))
 
     ax1.plot(train_losses, label="Train Loss")
     ax1.plot(val_losses, label="Validation Loss")
@@ -334,35 +284,24 @@ def plot_losses(train_losses: List[float], val_losses: List[float], train_mapes:
     ax2.legend()
     ax2.grid(True)
 
-    ax3.plot(train_mapes, label="Train MAPE")
-    ax3.plot(val_mapes, label="Validation MAPE")
-    ax3.set_title("MAPE Over Epochs")
-    ax3.set_xlabel("Epoch")
-    ax3.set_ylabel("MAPE (%)")
-    ax3.legend()
-    ax3.grid(True)
-
     plt.tight_layout()
-    plt.savefig("training_plots.png")
+    plt.savefig("plots/training_plots.png")
     plt.close()
 
 
 set_seed(CONFIG["seed"])
 device = get_device()
 
-df = load_data(CONFIG["file_path"], encoder_input, labels)
+df = load_data(CONFIG["dataset_path"], encoder_input, labels)
 dataset, train_dataset, val_dataset = create_datasets(df, CONFIG)
 train_loader, val_loader = create_dataloaders(train_dataset, val_dataset, CONFIG["batch_size"])
 
-model = create_model(MODEL_CONFIG, device)
+model = create_model(MODEL_CONFIG, device, CONFIG["pretrained_model"])
 optimizer, scheduler = create_optimizer_and_scheduler(model, CONFIG)
 criterion = MAPELoss(dataset.label_scaler).to(device)
 
-train_losses, val_losses, train_mapes, val_mapes = train_model(
+train_losses, val_losses = train_model(
     model, train_loader, val_loader, optimizer, scheduler, criterion, CONFIG, dataset.label_scaler
 )
 
-plot_losses(train_losses, val_losses, train_mapes, val_mapes)
-
-auto_mape = validate_autoregressive_mape(model, val_loader, device, dataset.label_scaler)
-print(f"Autoregressive Validation MAPE: {auto_mape:.2f}%")
+plot_losses(train_losses, val_losses)

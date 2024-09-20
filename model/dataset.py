@@ -76,7 +76,7 @@ class ImpurityDataset(Dataset):
         df_labels = train_df[self.label_names]
 
         if pair_up:
-            df_labels = self._reorder_columns(df_labels)
+            df_labels = self._reorder_labels(df_labels)
 
         feature_scaler = StandardScaler().fit(df_features.values)
         label_scaler = StandardScaler().fit(df_labels.values)
@@ -102,7 +102,7 @@ class ImpurityDataset(Dataset):
         df_labels = dataframe[self.label_names]
 
         if pair_up:
-            df_labels = self._reorder_columns(df_labels)
+            df_labels = self._reorder_labels(df_labels)
 
         xs = self.feature_scaler.transform(df_encoder_input.values) if self.feature_scaler else df_encoder_input.values
         ys = self.label_scaler.transform(df_labels.values) if self.label_scaler else df_labels.values
@@ -121,9 +121,9 @@ class ImpurityDataset(Dataset):
 
         return features, labels
 
-    def _reorder_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _reorder_labels(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Reorder columns for pairing (time step 1 and 122 are paired, 2 and 121, and so on).
+        Reorder labels for pairing (time step 1 and 122 are paired, 2 and 121, and so on).
 
         Args:
             df (pd.DataFrame): Input dataframe
