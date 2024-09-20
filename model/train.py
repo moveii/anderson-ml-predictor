@@ -10,8 +10,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 from model import AutoregressiveTransformer, ModelConfig
 from dataset import ImpurityDataset
@@ -56,7 +54,7 @@ MODEL_CONFIG = ModelConfig(
 class MAPELoss(nn.Module):
     """Custom Mean Absolute Percentage Error (MAPE) loss function."""
 
-    def __init__(self, scaler: StandardScaler, epsilon: float = 1e-8):
+    def __init__(self, scaler, epsilon: float = 1e-8):
         super(MAPELoss, self).__init__()
         self.scaler = scaler
         self.epsilon = epsilon
@@ -131,18 +129,7 @@ def create_datasets(df: pd.DataFrame, config: Dict[str, Union[int, float, str, b
         seed=config["seed"],
     )
 
-    other_size = config["validation_size"] + config["test_size"]
-
-    indices = list(range(len(dataset)))
-    train_indices, other_indices = train_test_split(indices, test_size=other_size, random_state=config["seed"])
-
-    val_size = config["validation_size"] / other_size
-    val_indices, _ = train_test_split(other_indices, test_size=(1 - val_size), random_state=config["seed"])
-
-    train_dataset = Subset(dataset, train_indices)
-    val_dataset = Subset(dataset, val_indices)
-
-    return dataset, train_dataset, val_dataset
+    return dataset, dataset.get_train_dataset(), dataset.get_val_dataset()
 
 
 def create_dataloaders(train_dataset: Subset, val_dataset: Subset, batch_size: int) -> Tuple[DataLoader, DataLoader]:
@@ -220,7 +207,7 @@ def train_model(
     scheduler: optim.lr_scheduler._LRScheduler,
     criterion: nn.Module,
     config: Dict[str, Union[int, float, str, bool]],
-    label_scaler: StandardScaler,
+    label_scaler,
 ) -> Tuple[List[float], List[float], List[float], List[float]]:
     """Train the model and return training history."""
     train_losses, val_losses = [], []
