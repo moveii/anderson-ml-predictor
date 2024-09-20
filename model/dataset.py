@@ -1,3 +1,5 @@
+# Patrick Berger, 2024
+
 import numpy as np
 import torch
 import pandas as pd
@@ -29,7 +31,7 @@ class ImpurityDataset(Dataset):
             dataframe (pd.DataFrame): Input dataframe
             encoder_input (List[str]): List of feature column names
             labels (List[str]): List of label column names
-            pair_up (bool): Whether to pair up labels
+            pair_up (bool): Whether to pair up labels, so that t(i) and t(max-i) are predicted at the same time
             use_scaling (bool): Whether to use feature and label scaling
             test_size (float): Proportion of the dataset to include in the test split
             device (torch.device, optional): Device to store tensors on
@@ -121,7 +123,7 @@ class ImpurityDataset(Dataset):
 
     def _reorder_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Reorder columns for pairing (1 and 122, 2 and 121, and so on).
+        Reorder columns for pairing (time step 1 and 122 are paired, 2 and 121, and so on).
 
         Args:
             df (pd.DataFrame): Input dataframe

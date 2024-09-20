@@ -1,7 +1,9 @@
+# Patrick Berger, 2024
+
 import torch
 import torch.nn as nn
 from dataclasses import dataclass
-from typing import Optional, Literal
+from typing import Literal
 
 
 @dataclass
