@@ -1,3 +1,5 @@
+# Patrick Berger, 2024
+
 import random
 import numpy as np
 import pandas as pd
@@ -14,10 +16,10 @@ from model import AutoregressiveTransformer, ModelConfig
 from dataset import ImpurityDataset
 from columns import encoder_input, labels
 
-# Configuration dictionary
+# Overall configuration
 CONFIG: Dict[str, Union[int, float, str, bool]] = {
     "seed": 42,
-    "file_path": "data/data_10k.csv",
+    "file_path": "data/data_50k.csv",
     "batch_size": 32,
     "validation_size": 0.1,
     "use_scaling": True,
