@@ -26,7 +26,7 @@ CONFIG: Dict[str, Union[int, float, str, bool]] = {
     "test_size": 0.1,
     "use_scaling": True,
     "pair_up_labels": False,  # whether to pair up the labels, so t(i) and t(max-i) are predicted at the same time
-    "num_epochs": 1,
+    "num_epochs": 10,
     "learning_rate": 1e-4,
     "scheduler_gamma": 0.99,
 }
@@ -119,12 +119,13 @@ def load_data(dataset_path: str, encoder_input: List[str], labels: List[str]) ->
 def create_datasets(df: pd.DataFrame, config: Dict[str, Union[int, float, str, bool]]) -> Tuple[ImpurityDataset, Subset, Subset]:
     """Create train and validation datasets."""
     dataset = ImpurityDataset(
-        df,
+        df[encoder_input + labels],
         encoder_input,
         labels,
         config["pair_up_labels"],
         config["use_scaling"],
-        config["validation_size"] + config["test_size"],
+        config["validation_size"],
+        config["test_size"],
         device=get_device(),
         seed=config["seed"],
     )
