@@ -19,14 +19,14 @@ from columns import encoder_input, labels
 CONFIG: Dict[str, Union[int, float, str, bool]] = {
     "seed": 42,
     "dataset_path": "data/data_50k.csv",
-    "model_checkpoint": "model/model-2024-09-20.pth",
+    "model_checkpoint": "model/model-2024-09-24-hybridization-approximations.pth",
     "pretrained_model": None,  # Set this to the path of a pretrained model to load, or None for a fresh start
     "batch_size": 32,
     "validation_size": 0.1,
     "test_size": 0.1,
     "use_scaling": True,
     "pair_up_labels": False,  # whether to pair up the labels, so t(i) and t(max-i) are predicted at the same time
-    "num_epochs": 10,
+    "num_epochs": 500,
     "learning_rate": 1e-4,
     "scheduler_gamma": 0.99,
 }
@@ -208,7 +208,6 @@ def train_model(
     scheduler: optim.lr_scheduler._LRScheduler,
     criterion: nn.Module,
     config: Dict[str, Union[int, float, str, bool]],
-    label_scaler,
 ) -> Tuple[List[float], List[float], List[float], List[float]]:
     """Train the model and return training history."""
     train_losses, val_losses = [], []
@@ -288,8 +287,6 @@ model = create_model(MODEL_CONFIG, device, CONFIG["pretrained_model"])
 optimizer, scheduler = create_optimizer_and_scheduler(model, CONFIG)
 criterion = MAPELoss(dataset.label_scaler).to(device)
 
-train_losses, val_losses = train_model(
-    model, train_loader, val_loader, optimizer, scheduler, criterion, CONFIG, dataset.label_scaler
-)
+train_losses, val_losses = train_model(model, train_loader, val_loader, optimizer, scheduler, criterion, CONFIG)
 
 plot_losses(train_losses, val_losses)
