@@ -19,7 +19,7 @@ from columns import encoder_input, labels
 CONFIG: Dict[str, Union[int, float, str, bool]] = {
     "seed": 42,
     "dataset_path": "data/data_50k.csv",
-    "model_checkpoint": "model/model.pth",
+    "model_checkpoint": "models/model.pth",
     "pretrained_model": None,  # Set this to the path of a pretrained model to load, or None for a fresh start
     "batch_size": 32,
     "validation_size": 0.1,
